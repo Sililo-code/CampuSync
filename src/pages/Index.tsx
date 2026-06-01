@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
-import { GraduationCap, Calendar, Users, BarChart, CheckCircle2, TrendingUp, Shield } from 'lucide-react';
+import { GraduationCap, Calendar, Users, BarChart, CheckCircle2, Shield } from 'lucide-react';
 import heroImage from '@/assets/hero-image.jpg';
 
 const Index = () => {
@@ -25,7 +25,7 @@ const Index = () => {
               <CheckCircle2 className="w-6 h-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-foreground">Class Tracker</h1>
+              <h1 className="text-xl font-bold text-foreground">CampuSync</h1>
               <p className="text-xs text-muted-foreground hidden sm:block">Cavendish University Zambia</p>
             </div>
           </div>
@@ -136,12 +136,7 @@ const Index = () => {
       <section className="py-20">
         <div className="container mx-auto px-4">
           <div className="bg-gradient-to-br from-primary/10 via-secondary/5 to-accent/10 rounded-3xl p-12 md:p-16">
-            <div className="grid md:grid-cols-3 gap-12 text-center">
-              <div>
-                <TrendingUp className="w-10 h-10 text-primary mx-auto mb-4" />
-                <div className="text-4xl font-bold mb-2">99.9%</div>
-                <div className="text-muted-foreground">System Uptime</div>
-              </div>
+            <div className="grid md:grid-cols-2 gap-12 text-center">
               <div>
                 <CheckCircle2 className="w-10 h-10 text-secondary mx-auto mb-4" />
                 <div className="text-4xl font-bold mb-2">Real-time</div>
@@ -182,7 +177,7 @@ const Index = () => {
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                 <CheckCircle2 className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="font-semibold">Class Tracker</span>
+              <span className="font-semibold">CampuSync</span>
             </div>
             <p className="text-sm text-muted-foreground">
               © 2025 Cavendish University Zambia. All rights reserved.

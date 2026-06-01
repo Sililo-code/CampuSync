@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { CheckCircle2, XCircle, Clock, TrendingUp, Users } from 'lucide-react';
+import { ATTENDANCE_THRESHOLD_DEFAULT } from '@/lib/constants';
 
 interface AttendanceAnalyticsProps {
   moduleId?: string;
@@ -153,10 +154,10 @@ export default function AttendanceAnalytics({ moduleId, studentId }: AttendanceA
               <div className="text-xs text-muted-foreground">Absent</div>
             </div>
           </div>
-          {stats.percentage < 75 && stats.total > 0 && (
+          {stats.percentage < ATTENDANCE_THRESHOLD_DEFAULT && stats.total > 0 && (
             <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mt-4">
               <p className="text-sm text-destructive font-medium">
-                ⚠️ Warning: Attendance below 75%
+                ⚠️ Warning: Attendance below {ATTENDANCE_THRESHOLD_DEFAULT}%
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 Minimum attendance requirement may not be met

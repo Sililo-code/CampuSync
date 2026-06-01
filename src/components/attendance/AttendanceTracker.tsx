@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, XCircle, Clock, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
+import { ATTENDANCE_THRESHOLD_DEFAULT } from '@/lib/constants';
 
 interface AttendanceTrackerProps {
   moduleId: string;
@@ -67,7 +68,7 @@ export default function AttendanceTracker({ moduleId, isAdmin = false }: Attenda
       return;
     }
 
-    const studentList = data?.map((item: any) => item.profiles).filter(Boolean) || [];
+    const studentList = (data as unknown as { profiles: Student }[])?.map((item) => item.profiles).filter(Boolean) || [];
     setStudents(studentList);
     setLoading(false);
   };
@@ -97,7 +98,7 @@ export default function AttendanceTracker({ moduleId, isAdmin = false }: Attenda
       return;
     }
 
-    setAttendance(data as any || []);
+    setAttendance(data as unknown as AttendanceRecord[] || []);
   };
 
   const markAttendance = async () => {
@@ -162,10 +163,9 @@ export default function AttendanceTracker({ moduleId, isAdmin = false }: Attenda
     const total = studentRecords.length;
     const present = studentRecords.filter(a => a.status === 'present').length;
     const late = studentRecords.filter(a => a.status === 'late').length;
-    const absent = studentRecords.filter(a => a.status === 'absent').length;
     const percentage = total > 0 ? ((present + late) / total) * 100 : 0;
 
-    return { total, present, late, absent, percentage };
+    return { total, present, late, percentage };
   };
 
   if (loading) {
@@ -279,7 +279,7 @@ export default function AttendanceTracker({ moduleId, isAdmin = false }: Attenda
                         {stats.absent}
                       </TableCell>
                       <TableCell className="text-center">
-                        <Badge variant={stats.percentage >= 75 ? 'default' : 'destructive'}>
+                        <Badge variant={stats.percentage >= ATTENDANCE_THRESHOLD_DEFAULT ? 'default' : 'destructive'}>
                           {stats.percentage.toFixed(1)}%
                         </Badge>
                       </TableCell>

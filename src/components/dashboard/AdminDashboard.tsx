@@ -141,10 +141,10 @@ export default function AdminDashboard() {
       setNewUser({ email: '', password: '', fullName: '', role: 'student' });
       setDialogOpen(false);
       fetchAllData();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Error creating user',
-        description: error.message || 'Failed to create user',
+        description: error instanceof Error ? error.message : 'Failed to create user',
         variant: 'destructive',
       });
     }

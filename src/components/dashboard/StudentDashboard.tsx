@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Calendar, CheckCircle2, XCircle, Clock, BookOpen } from 'lucide-react';
@@ -28,7 +27,6 @@ export default function StudentDashboard() {
   const { toast } = useToast();
   const [modules, setModules] = useState<Module[]>([]);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
-  const [selectedModule, setSelectedModule] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -60,7 +58,7 @@ export default function StudentDashboard() {
       return;
     }
 
-    const moduleList = data?.map((item: any) => item.modules).filter(Boolean) || [];
+    const moduleList = (data as unknown as { modules: Module }[])?.map((item) => item.modules).filter(Boolean) || [];
     setModules(moduleList);
     setLoading(false);
   };
@@ -92,47 +90,16 @@ export default function StudentDashboard() {
       return;
     }
 
-    setAttendance(data as any || []);
-  };
-
-  const markAttendance = async (moduleId: string, status: 'present' | 'late') => {
-    if (!user) return;
-
-    const { error } = await supabase
-      .from('attendance')
-      .insert({
-        student_id: user.id,
-        module_id: moduleId,
-        status,
-        marked_by: user.id,
-        date: new Date().toISOString().split('T')[0],
-      });
-
-    if (error) {
-      toast({
-        title: 'Error marking attendance',
-        description: error.message,
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    toast({
-      title: 'Attendance marked',
-      description: `You have been marked as ${status}`,
-    });
-
-    fetchAttendance();
+    setAttendance(data as unknown as Attendance[] || []);
   };
 
   const getAttendanceStats = () => {
     const total = attendance.length;
     const present = attendance.filter((a) => a.status === 'present').length;
     const late = attendance.filter((a) => a.status === 'late').length;
-    const absent = attendance.filter((a) => a.status === 'absent').length;
     const percentage = total > 0 ? ((present + late) / total) * 100 : 0;
 
-    return { total, present, late, absent, percentage };
+    return { total, present, late, percentage };
   };
 
   const stats = getAttendanceStats();
@@ -206,7 +173,7 @@ export default function StudentDashboard() {
         <Card>
           <CardHeader>
             <CardTitle>My Modules</CardTitle>
-            <CardDescription>Mark your attendance for today</CardDescription>
+            <CardDescription>View your enrolled modules</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -223,21 +190,6 @@ export default function StudentDashboard() {
                     <div>
                       <p className="font-semibold">{module.code}</p>
                       <p className="text-sm text-muted-foreground">{module.name}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => markAttendance(module.id, 'present')}
-                      >
-                        Present
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => markAttendance(module.id, 'late')}
-                      >
-                        Late
-                      </Button>
                     </div>
                   </div>
                 ))

@@ -6,22 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { GraduationCap } from 'lucide-react';
-import { z } from 'zod';
-
-const signUpSchema = z.object({
-  email: z.string().email({ message: 'Invalid email address' }).max(255),
-  password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
-  fullName: z.string().trim().min(1, { message: 'Full name is required' }).max(100),
-  role: z.enum(['student', 'lecturer', 'admin']),
-});
-
-const signInSchema = z.object({
-  email: z.string().email({ message: 'Invalid email address' }),
-  password: z.string().min(1, { message: 'Password is required' }),
-});
+import { signInSchema, signUpSchema } from '@/schemas';
 
 export default function Auth() {
   const [loading, setLoading] = useState(false);
@@ -66,10 +53,10 @@ export default function Auth() {
         });
         navigate('/dashboard');
       }
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Sign up failed',
-        description: error.message || 'An error occurred during sign up',
+        description: error instanceof Error ? error.message : 'An error occurred during sign up',
         variant: 'destructive',
       });
     } finally {
@@ -98,10 +85,10 @@ export default function Auth() {
         });
         navigate('/dashboard');
       }
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Sign in failed',
-        description: error.message || 'Invalid email or password',
+        description: error instanceof Error ? error.message : 'Invalid email or password',
         variant: 'destructive',
       });
     } finally {
@@ -116,7 +103,7 @@ export default function Auth() {
           <div className="mx-auto w-16 h-16 bg-primary rounded-full flex items-center justify-center mb-2">
             <GraduationCap className="w-10 h-10 text-primary-foreground" />
           </div>
-          <CardTitle className="text-3xl font-bold">Class Tracker</CardTitle>
+          <CardTitle className="text-3xl font-bold">CampuSync</CardTitle>
           <CardDescription>Cavendish University Zambia Attendance System</CardDescription>
         </CardHeader>
         <CardContent>
@@ -192,24 +179,6 @@ export default function Auth() {
                     required
                     minLength={6}
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-role">Role</Label>
-                  <Select
-                    value={signUpData.role}
-                    onValueChange={(value: 'student' | 'lecturer' | 'admin') =>
-                      setSignUpData({ ...signUpData, role: value })
-                    }
-                  >
-                    <SelectTrigger id="signup-role">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="student">Student</SelectItem>
-                      <SelectItem value="lecturer">Lecturer</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? 'Creating account...' : 'Sign Up'}

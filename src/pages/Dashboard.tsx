@@ -41,7 +41,7 @@ export default function Dashboard() {
               <GraduationCap className="w-6 h-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-foreground">Class Tracker</h1>
+              <h1 className="text-xl font-bold text-foreground">CampuSync</h1>
               <p className="text-xs text-muted-foreground">Cavendish University Zambia</p>
             </div>
           </div>

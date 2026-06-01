@@ -35,13 +35,21 @@ interface Student {
   email: string;
 }
 
+interface EnrolledStudent {
+  profiles: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+}
+
 export default function LecturerDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [modules, setModules] = useState<Module[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedModule, setSelectedModule] = useState<string | null>(null);
-  const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
+  const [enrolledStudents, setEnrolledStudents] = useState<EnrolledStudent[]>([]);
   const [newModule, setNewModule] = useState({ code: '', name: '', description: '' });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [enrollDialogOpen, setEnrollDialogOpen] = useState(false);
@@ -146,10 +154,10 @@ export default function LecturerDashboard() {
       setNewModule({ code: '', name: '', description: '' });
       setDialogOpen(false);
       fetchModules();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Error creating module',
-        description: error.message || 'Failed to create module',
+        description: error instanceof Error ? error.message : 'Failed to create module',
         variant: 'destructive',
       });
     }
@@ -341,8 +349,8 @@ export default function LecturerDashboard() {
                             {enrolledStudents.length === 0 ? (
                               <p className="text-xs text-muted-foreground">No students enrolled</p>
                             ) : (
-                              enrolledStudents.map((enrollment: any) => (
-                                <div key={enrollment.id} className="text-sm p-2 bg-accent/5 rounded">
+                              enrolledStudents.map((enrollment) => (
+                                <div key={enrollment.profiles.id} className="text-sm p-2 bg-accent/5 rounded">
                                   <span className="font-medium">{enrollment.profiles.full_name}</span>
                                   <span className="text-muted-foreground ml-2">({enrollment.profiles.email})</span>
                                 </div>
