@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -10,20 +10,248 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
-      [_ in never]: never
+      attendance: {
+        Row: {
+          created_at: string | null
+          id: string
+          marked_at: string
+          marked_by: string | null
+          session_id: string
+          status: Database["public"]["Enums"]["attendance_status"]
+          student_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          marked_at?: string
+          marked_by?: string | null
+          session_id: string
+          status: Database["public"]["Enums"]["attendance_status"]
+          student_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          marked_at?: string
+          marked_by?: string | null
+          session_id?: string
+          status?: Database["public"]["Enums"]["attendance_status"]
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_marked_by_fkey"
+            columns: ["marked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      modules: {
+        Row: {
+          attendance_threshold: number
+          code: string
+          created_at: string | null
+          description: string | null
+          id: string
+          lecturer_id: string | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          attendance_threshold?: number
+          code: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          lecturer_id?: string | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          attendance_threshold?: number
+          code?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          lecturer_id?: string | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "modules_lecturer_id_fkey"
+            columns: ["lecturer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          email: string
+          full_name: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          full_name: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      sessions: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          module_id: string
+          session_date: string
+          session_number: number
+          start_time: string
+          topic: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          module_id: string
+          session_date: string
+          session_number: number
+          start_time: string
+          topic?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          module_id?: string
+          session_date?: string
+          session_number?: number
+          start_time?: string
+          topic?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sessions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sessions_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_modules: {
+        Row: {
+          enrolled_at: string | null
+          id: string
+          module_id: string
+          student_id: string
+        }
+        Insert: {
+          enrolled_at?: string | null
+          id?: string
+          module_id: string
+          student_id: string
+        }
+        Update: {
+          enrolled_at?: string | null
+          id?: string
+          module_id?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_modules_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_modules_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "lecturer" | "student"
+      attendance_status: "present" | "late" | "absent"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +378,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "lecturer", "student"],
+      attendance_status: ["present", "late", "absent"],
+    },
   },
 } as const
+

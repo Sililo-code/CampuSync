@@ -47,6 +47,7 @@ export const createModuleSchema = z.object({
 export const createSessionSchema = z.object({
   moduleId: z.string().uuid({ message: 'A valid module must be selected.' }),
   sessionDate: z.string().min(1, { message: 'Session date is required.' }),
+  sessionNumber: z.number().int().min(1, { message: 'Session number must be at least 1.' }),
   startTime: z.string().min(1, { message: 'Start time is required.' }),
   topic: z.string().max(200).optional(),
 });
