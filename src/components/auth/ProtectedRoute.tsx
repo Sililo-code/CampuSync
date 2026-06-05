@@ -1,20 +1,18 @@
 import { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
+import { UserRole } from '@/lib/constants';
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requiredRole?: 'admin' | 'lecturer' | 'student';
+  requiredRole?: UserRole;
 }
 
 /**
  * Wraps a route to enforce authentication and optionally role-based access.
  * Redirects unauthenticated users to /auth.
- * Redirects authenticated users with the wrong role to /dashboard.
+ * Redirects authenticated users with the wrong role to /unauthorised.
  * Shows a loading spinner during auth state resolution.
- *
- * NOTE: This component is scaffolded. Full implementation is pending Phase 2
- * of the CampuSync development roadmap (Core Architecture).
  */
 export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const { user, userRole, loading } = useAuth();
@@ -32,7 +30,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
   }
 
   if (requiredRole && userRole !== requiredRole) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/unauthorised" replace />;
   }
 
   return <>{children}</>;

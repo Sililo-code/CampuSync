@@ -1,21 +1,30 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import StudentDashboard from '@/components/dashboard/StudentDashboard';
 import LecturerDashboard from '@/components/dashboard/LecturerDashboard';
 import AdminDashboard from '@/components/dashboard/AdminDashboard';
 import { Button } from '@/components/ui/button';
 import { LogOut, GraduationCap } from 'lucide-react';
+import { USER_ROLES } from '@/lib/constants';
 
 export default function Dashboard() {
   const { user, userRole, loading, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
+    if (!loading) {
+      if (!user) {
+        navigate('/auth');
+      } else if (location.pathname === '/dashboard') {
+        // Redirect to role-specific dashboard path if at the base /dashboard
+        if (userRole === USER_ROLES.STUDENT) navigate('/dashboard/student');
+        else if (userRole === USER_ROLES.LECTURER) navigate('/dashboard/lecturer');
+        else if (userRole === USER_ROLES.ADMIN) navigate('/dashboard/admin');
+      }
     }
-  }, [user, loading, navigate]);
+  }, [user, userRole, loading, navigate, location.pathname]);
 
   if (loading) {
     return (
@@ -53,9 +62,9 @@ export default function Dashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        {userRole === 'student' && <StudentDashboard />}
-        {userRole === 'lecturer' && <LecturerDashboard />}
-        {userRole === 'admin' && <AdminDashboard />}
+        {userRole === USER_ROLES.STUDENT && <StudentDashboard />}
+        {userRole === USER_ROLES.LECTURER && <LecturerDashboard />}
+        {userRole === USER_ROLES.ADMIN && <AdminDashboard />}
       </main>
     </div>
   );
