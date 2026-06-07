@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { QUERY_KEYS } from './keys';
-import { AttendanceRecord } from '@/types';
+import { AttendanceWithModule } from '@/types';
 
 /**
  * Hook to fetch all attendance records for a specific session.
@@ -14,11 +14,17 @@ export function useAttendance(sessionId?: string) {
 
       const { data, error } = await supabase
         .from('attendance')
-        .select('*')
+        .select(`
+          *,
+          sessions (
+            *,
+            modules (*)
+          )
+        `)
         .eq('session_id', sessionId);
 
       if (error) throw error;
-      return data as AttendanceRecord[];
+      return data as unknown as AttendanceWithModule[];
     },
     enabled: !!sessionId,
   });

@@ -51,8 +51,15 @@ export interface AttendanceRecord {
   student_id: string;
   session_id: string;
   status: AttendanceStatus;
-  marked_by: string;
+  marked_by: string | null;
   marked_at: string;
+}
+
+/** Represents an attendance record with nested session and module data. */
+export interface AttendanceWithModule extends AttendanceRecord {
+  sessions: Session & {
+    modules: Module;
+  };
 }
 
 /** Computed attendance statistics for a student within a module. */

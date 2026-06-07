@@ -1,102 +1,26 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
 import { Calendar, CheckCircle2, XCircle, Clock, BookOpen } from 'lucide-react';
-
-interface Module {
-  id: string;
-  code: string;
-  name: string;
-}
-
-interface Attendance {
-  id: string;
-  date: string;
-  status: string;
-  modules: {
-    code: string;
-    name: string;
-  };
-}
+import { useStudentAttendance } from '@/hooks/queries/useStudentAttendance';
+import { useModules } from '@/hooks/queries/useModules';
+import { ATTENDANCE_STATUS } from '@/lib/constants';
 
 export default function StudentDashboard() {
   const { user } = useAuth();
-  const { toast } = useToast();
-  const [modules, setModules] = useState<Module[]>([]);
-  const [attendance, setAttendance] = useState<Attendance[]>([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Use Phase 2 hooks for data fetching
+  // Note: useModules is used for the modules list as per instructions
+  const { data: modules = [], isLoading: isModulesLoading } = useModules();
+  const { data: attendance = [], isLoading: isAttendanceLoading } = useStudentAttendance(user?.id);
 
-  useEffect(() => {
-    fetchModules();
-    fetchAttendance();
-  }, [user]);
-
-  const fetchModules = async () => {
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from('student_modules')
-      .select(`
-        module_id,
-        modules (
-          id,
-          code,
-          name
-        )
-      `)
-      .eq('student_id', user.id);
-
-    if (error) {
-      toast({
-        title: 'Error fetching modules',
-        description: error.message,
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const moduleList = (data as unknown as { modules: Module }[])?.map((item) => item.modules).filter(Boolean) || [];
-    setModules(moduleList);
-    setLoading(false);
-  };
-
-  const fetchAttendance = async () => {
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from('attendance')
-      .select(`
-        id,
-        date,
-        status,
-        modules (
-          code,
-          name
-        )
-      `)
-      .eq('student_id', user.id)
-      .order('date', { ascending: false })
-      .limit(50);
-
-    if (error) {
-      toast({
-        title: 'Error fetching attendance',
-        description: error.message,
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setAttendance(data as unknown as Attendance[] || []);
-  };
+  // Combine loading states from hooks
+  const isLoading = isModulesLoading || isAttendanceLoading;
 
   const getAttendanceStats = () => {
     const total = attendance.length;
-    const present = attendance.filter((a) => a.status === 'present').length;
-    const late = attendance.filter((a) => a.status === 'late').length;
+    const present = attendance.filter((a) => a.status === ATTENDANCE_STATUS.PRESENT).length;
+    const late = attendance.filter((a) => a.status === ATTENDANCE_STATUS.LATE).length;
     const percentage = total > 0 ? ((present + late) / total) * 100 : 0;
 
     return { total, present, late, percentage };
@@ -106,18 +30,18 @@ export default function StudentDashboard() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'present':
+      case ATTENDANCE_STATUS.PRESENT:
         return <CheckCircle2 className="w-4 h-4 text-secondary" />;
-      case 'late':
+      case ATTENDANCE_STATUS.LATE:
         return <Clock className="w-4 h-4 text-accent" />;
-      case 'absent':
+      case ATTENDANCE_STATUS.ABSENT:
         return <XCircle className="w-4 h-4 text-destructive" />;
       default:
         return null;
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -218,9 +142,10 @@ export default function StudentDashboard() {
                     <div className="flex items-center gap-3">
                       {getStatusIcon(record.status)}
                       <div>
-                        <p className="text-sm font-medium">{record.modules.code}</p>
+                        {/* Traverse Phase 1 schema: attendance -> sessions -> modules */}
+                        <p className="text-sm font-medium">{record.sessions.modules.code}</p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(record.date).toLocaleDateString('en-US', {
+                          {new Date(record.sessions.session_date).toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric',
@@ -230,9 +155,9 @@ export default function StudentDashboard() {
                     </div>
                     <Badge
                       variant={
-                        record.status === 'present'
+                        record.status === ATTENDANCE_STATUS.PRESENT
                           ? 'default'
-                          : record.status === 'late'
+                          : record.status === ATTENDANCE_STATUS.LATE
                           ? 'secondary'
                           : 'destructive'
                       }

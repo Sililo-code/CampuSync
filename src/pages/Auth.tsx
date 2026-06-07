@@ -83,7 +83,7 @@ export default function Auth() {
           title: 'Welcome back!',
           description: 'You have successfully signed in.',
         });
-        navigate('/dashboard');
+        // Navigation handled by onAuthStateChange in auth.tsx
       }
     } catch (error) {
       toast({

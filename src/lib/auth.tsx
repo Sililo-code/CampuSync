@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +8,7 @@ interface AuthContextType {
   session: Session | null;
   userRole: string | null;
   loading: boolean;
+  isInitialised: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -18,7 +19,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isInitialised, setIsInitialised] = useState(false);
   const navigate = useNavigate();
+  
+  // Track the last processed user ID to deduplicate SIGNED_IN events
+  const lastProcessedUserId = useRef<string | null>(null);
 
   const fetchUserRole = async (userId: string) => {
     try {
@@ -40,50 +45,72 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Check active sessions and sets the user
-    const initializeAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        const role = await fetchUserRole(session.user.id);
-        setUserRole(role);
-      }
-      setLoading(false);
-    };
-
-    initializeAuth();
-
-    // Listen for changes on auth state (sign in, sign out, etc.)
+    // onAuthStateChange is the single source of truth for all auth state.
+    // INITIAL_SESSION event fires automatically on mount with current session state.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
+        // 1. Synchronous Deduplication
+        if (event === 'SIGNED_IN') {
+          if (session?.user?.id === lastProcessedUserId.current) {
+            return;
+          }
+          lastProcessedUserId.current = session?.user?.id ?? null;
+        }
+
+        if (event === 'SIGNED_OUT') {
+          lastProcessedUserId.current = null;
+        }
+
+        // 2. Synchronous State Updates
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+          setLoading(true);
+        }
+
         setSession(session);
         setUser(session?.user ?? null);
         
-        if (session?.user) {
-          const role = await fetchUserRole(session.user.id);
-          setUserRole(role);
-        } else {
-          setUserRole(null);
-        }
-        setLoading(false);
+        // 3. Deferred Async Work (fetchUserRole and navigate)
+        // We use setTimeout(0) to ensure Supabase has committed the session JWT to storage.
+        setTimeout(() => {
+          const processAuthChange = async () => {
+            if (session?.user) {
+              const role = await fetchUserRole(session.user.id);
+              setUserRole(role);
+              
+              // Navigate only after role is confirmed
+              if (event === 'SIGNED_IN') {
+                if (role === 'student') navigate('/dashboard/student');
+                else if (role === 'lecturer') navigate('/dashboard/lecturer');
+                else if (role === 'admin') navigate('/dashboard/admin');
+                else navigate('/dashboard');
+              }
+            } else {
+              setUserRole(null);
+            }
+            
+            setLoading(false);
+            setIsInitialised(true);
+          };
+
+          processAuthChange();
+        }, 0);
       }
     );
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [navigate]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
     setUserRole(null);
+    lastProcessedUserId.current = null;
     navigate('/auth');
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, userRole, loading, signOut }}>
+    <AuthContext.Provider value={{ user, session, userRole, loading, isInitialised, signOut }}>
       {children}
     </AuthContext.Provider>
   );

@@ -15,9 +15,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!loading) {
-      if (!user) {
-        navigate('/auth');
-      } else if (location.pathname === '/dashboard') {
+      if (user && location.pathname === '/dashboard') {
         // Redirect to role-specific dashboard path if at the base /dashboard
         if (userRole === USER_ROLES.STUDENT) navigate('/dashboard/student');
         else if (userRole === USER_ROLES.LECTURER) navigate('/dashboard/lecturer');
