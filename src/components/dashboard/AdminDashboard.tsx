@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useState } from 'react';
+import { useProfiles } from '@/hooks/queries/useProfiles';
+import { useModules } from '@/hooks/queries/useModules';
+import { useCreateUser } from '@/hooks/queries/useCreateUser';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,138 +11,51 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Users, BookOpen, GraduationCap, BarChart3, Calendar as CalendarIcon } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { z } from 'zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { createUserSchema, CreateUserFormValues } from '@/schemas';
 import AttendanceAnalytics from '@/components/attendance/AttendanceAnalytics';
-
-const userSchema = z.object({
-  email: z.string().email({ message: 'Invalid email address' }).max(255),
-  password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
-  fullName: z.string().trim().min(1, { message: 'Full name is required' }).max(100),
-  role: z.enum(['student', 'lecturer']),
-});
-
-interface Profile {
-  id: string;
-  email: string;
-  full_name: string;
-  role: string;
-}
-
-interface Module {
-  id: string;
-  code: string;
-  name: string;
-  lecturer_id: string | null;
-}
+import { USER_ROLES } from '@/lib/constants';
 
 export default function AdminDashboard() {
   const { toast } = useToast();
-  const [students, setStudents] = useState<Profile[]>([]);
-  const [lecturers, setLecturers] = useState<Profile[]>([]);
-  const [modules, setModules] = useState<Module[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedModule, setSelectedModule] = useState<string | null>(null);
-  const [newUser, setNewUser] = useState({
-    email: '',
-    password: '',
-    fullName: '',
-    role: 'student' as 'student' | 'lecturer',
+  
+  // Separate states to prevent collision between student and module toggles
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
+
+  // Queries
+  const { data: students = [], isLoading: loadingStudents } = useProfiles(USER_ROLES.STUDENT);
+  const { data: lecturers = [], isLoading: loadingLecturers } = useProfiles(USER_ROLES.LECTURER);
+  const { data: modules = [], isLoading: loadingModules } = useModules();
+
+  // Mutation
+  const createUserMutation = useCreateUser();
+
+  // User creation form
+  const userForm = useForm<CreateUserFormValues>({
+    resolver: zodResolver(createUserSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+      fullName: '',
+      role: 'student',
+    },
   });
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchAllData();
-  }, []);
-
-  const fetchAllData = async () => {
-    await Promise.all([fetchStudents(), fetchLecturers(), fetchModules()]);
-    setLoading(false);
-  };
-
-  const fetchStudents = async () => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('role', 'student')
-      .order('full_name');
-
-    if (error) {
-      toast({
-        title: 'Error fetching students',
-        description: error.message,
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setStudents(data || []);
-  };
-
-  const fetchLecturers = async () => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('role', 'lecturer')
-      .order('full_name');
-
-    if (error) {
-      toast({
-        title: 'Error fetching lecturers',
-        description: error.message,
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setLecturers(data || []);
-  };
-
-  const fetchModules = async () => {
-    const { data, error } = await supabase
-      .from('modules')
-      .select('*')
-      .order('code');
-
-    if (error) {
-      toast({
-        title: 'Error fetching modules',
-        description: error.message,
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setModules(data || []);
-  };
-
-  const createUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleCreateUser = async (values: CreateUserFormValues) => {
     try {
-      const validated = userSchema.parse(newUser);
-
-      const { data, error } = await supabase.auth.signUp({
-        email: validated.email,
-        password: validated.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            full_name: validated.fullName,
-            role: validated.role,
-          },
-        },
-      });
-
-      if (error) throw error;
+      await createUserMutation.mutateAsync(values);
 
       toast({
         title: 'User created successfully',
-        description: `${validated.role === 'student' ? 'Student' : 'Lecturer'} account has been created`,
+        description: `${values.role === 'student' ? 'Student' : 'Lecturer'} account has been created`,
       });
 
-      setNewUser({ email: '', password: '', fullName: '', role: 'student' });
+      userForm.reset();
       setDialogOpen(false);
-      fetchAllData();
     } catch (error) {
       toast({
         title: 'Error creating user',
@@ -150,7 +65,9 @@ export default function AdminDashboard() {
     }
   };
 
-  if (loading) {
+  const isLoading = loadingStudents || loadingLecturers || loadingModules;
+
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -174,60 +91,73 @@ export default function AdminDashboard() {
               <DialogTitle>Create New User</DialogTitle>
               <DialogDescription>Add a new student or lecturer to the system</DialogDescription>
             </DialogHeader>
-            <form onSubmit={createUser} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
-                <Select
-                  value={newUser.role}
-                  onValueChange={(value: 'student' | 'lecturer') =>
-                    setNewUser({ ...newUser, role: value })
-                  }
-                >
-                  <SelectTrigger id="role">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="student">Student</SelectItem>
-                    <SelectItem value="lecturer">Lecturer</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input
-                  id="fullName"
-                  value={newUser.fullName}
-                  onChange={(e) => setNewUser({ ...newUser, fullName: e.target.value })}
-                  placeholder="John Doe"
-                  required
-                  maxLength={100}
+            <Form {...userForm}>
+              <form onSubmit={userForm.handleSubmit(handleCreateUser)} className="space-y-4">
+                <FormField
+                  control={userForm.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Role</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a role" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="student">Student</SelectItem>
+                          <SelectItem value="lecturer">Lecturer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={newUser.email}
-                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                  placeholder="user@cuz.ac.zm"
-                  required
-                  maxLength={255}
+                <FormField
+                  control={userForm.control}
+                  name="fullName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Full Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="John Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={newUser.password}
-                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                  required
-                  minLength={6}
+                <FormField
+                  control={userForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="user@cuz.ac.zm" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <Button type="submit" className="w-full">Create User</Button>
-            </form>
+                <FormField
+                  control={userForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" className="w-full" disabled={createUserMutation.isPending}>
+                  {createUserMutation.isPending ? 'Creating...' : 'Create User'}
+                </Button>
+              </form>
+            </Form>
           </DialogContent>
         </Dialog>
       </div>
@@ -301,13 +231,13 @@ export default function AdminDashboard() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setSelectedModule(student.id)}
+                          onClick={() => setSelectedStudentId(student.id === selectedStudentId ? null : student.id)}
                         >
                           <CalendarIcon className="w-4 h-4 mr-2" />
                           View Attendance
                         </Button>
                       </div>
-                      {selectedModule === student.id && (
+                      {selectedStudentId === student.id && (
                         <div className="mt-4 pt-4 border-t border-border">
                           <AttendanceAnalytics studentId={student.id} />
                         </div>
@@ -376,13 +306,13 @@ export default function AdminDashboard() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setSelectedModule(module.id === selectedModule ? null : module.id)}
+                          onClick={() => setSelectedModuleId(module.id === selectedModuleId ? null : module.id)}
                         >
                           <BarChart3 className="w-4 h-4 mr-2" />
                           View Analytics
                         </Button>
                       </div>
-                      {selectedModule === module.id && (
+                      {selectedModuleId === module.id && (
                         <div className="mt-4 pt-4 border-t border-border">
                           <AttendanceAnalytics moduleId={module.id} />
                         </div>

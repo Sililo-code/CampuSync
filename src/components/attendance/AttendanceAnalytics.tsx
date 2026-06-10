@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useAttendanceStats } from '@/hooks/queries/useAttendanceStats';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { CheckCircle2, XCircle, Clock, TrendingUp, Users } from 'lucide-react';
@@ -10,64 +9,22 @@ interface AttendanceAnalyticsProps {
   studentId?: string;
 }
 
-interface AttendanceStats {
-  total: number;
-  present: number;
-  late: number;
-  absent: number;
-  percentage: number;
-}
-
 export default function AttendanceAnalytics({ moduleId, studentId }: AttendanceAnalyticsProps) {
-  const [stats, setStats] = useState<AttendanceStats>({
-    total: 0,
-    present: 0,
-    late: 0,
-    absent: 0,
-    percentage: 0,
-  });
-  const [loading, setLoading] = useState(true);
+  const { data: stats, isLoading } = useAttendanceStats(
+    studentId,
+    moduleId,
+    ATTENDANCE_THRESHOLD_DEFAULT
+  );
 
-  useEffect(() => {
-    fetchAttendanceStats();
-  }, [moduleId, studentId]);
-
-  const fetchAttendanceStats = async () => {
-    let query = supabase.from('attendance').select('status');
-
-    if (moduleId) {
-      query = query.eq('module_id', moduleId);
-    }
-
-    if (studentId) {
-      query = query.eq('student_id', studentId);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('Error fetching attendance stats:', error);
-      setLoading(false);
-      return;
-    }
-
-    const total = data?.length || 0;
-    const present = data?.filter(a => a.status === 'present').length || 0;
-    const late = data?.filter(a => a.status === 'late').length || 0;
-    const absent = data?.filter(a => a.status === 'absent').length || 0;
-    const percentage = total > 0 ? ((present + late) / total) * 100 : 0;
-
-    setStats({ total, present, late, absent, percentage });
-    setLoading(false);
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-32">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
+
+  if (!stats) return null;
 
   return (
     <div className="space-y-4">

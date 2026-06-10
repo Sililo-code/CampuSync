@@ -5,56 +5,75 @@ import { AttendanceStats } from '@/types';
 import { ATTENDANCE_STATUS } from '@/lib/constants';
 
 /**
- * Hook to compute attendance statistics for a student within a module.
+ * Hook to compute attendance statistics.
+ * Can be scoped to:
+ * 1. A specific student in a specific module (both provided)
+ * 2. All attendance for a specific student (only studentId provided)
+ * 3. All attendance for a specific module (only moduleId provided)
+ * 4. System-wide attendance (neither provided)
  */
 export function useAttendanceStats(studentId?: string, moduleId?: string, threshold: number = 80) {
   return useQuery({
     queryKey: [QUERY_KEYS.ATTENDANCE_STATS, studentId, moduleId],
     queryFn: async () => {
-      if (!studentId || !moduleId) return null;
+      let query = supabase.from('attendance').select('status');
 
-      // Get all sessions for this module
-      const { data: sessions, error: sessionsError } = await supabase
-        .from('sessions')
-        .select('id')
-        .eq('module_id', moduleId);
+      // 1. Scoped to Module (either for one student or all students)
+      if (moduleId) {
+        const { data: sessions, error: sessionsError } = await supabase
+          .from('sessions')
+          .select('id')
+          .eq('module_id', moduleId);
 
-      if (sessionsError) throw sessionsError;
+        if (sessionsError) throw sessionsError;
+        const sessionIds = sessions.map((s) => s.id);
 
-      const sessionIds = sessions.map(s => s.id);
-      if (sessionIds.length === 0) {
-        return {
-          total: 0,
-          present: 0,
-          late: 0,
-          absent: 0,
-          percentage: 100,
-          isAtRisk: false,
-          absencesRemaining: Math.floor(0 * (1 - threshold / 100)),
-        } as AttendanceStats;
+        if (sessionIds.length === 0) {
+          return {
+            total: 0,
+            present: 0,
+            late: 0,
+            absent: 0,
+            percentage: 100,
+            isAtRisk: false,
+            absencesRemaining: 0,
+          } as AttendanceStats;
+        }
+
+        query = query.in('session_id', sessionIds);
       }
 
-      // Get student's attendance for these sessions
-      const { data: attendance, error: attendanceError } = await supabase
-        .from('attendance')
-        .select('status')
-        .eq('student_id', studentId)
-        .in('session_id', sessionIds);
+      // 2. Scoped to Student (either for one module or all modules)
+      if (studentId) {
+        query = query.eq('student_id', studentId);
+      }
 
+      const { data: attendance, error: attendanceError } = await query;
       if (attendanceError) throw attendanceError;
 
-      const total = sessionIds.length;
-      const present = attendance.filter(a => a.status === ATTENDANCE_STATUS.PRESENT).length;
-      const late = attendance.filter(a => a.status === ATTENDANCE_STATUS.LATE).length;
-      const absent = attendance.filter(a => a.status === ATTENDANCE_STATUS.ABSENT).length;
-      
-      // Percentage calculation: (Present + Late) / Total
-      // Note: CUZ policy might vary, but typically Late counts as participation.
+      // Calculate stats
+      // If we are scoped to a module AND a student, total is the number of sessions
+      // Otherwise, total is the number of attendance records we found
+      let total = 0;
+      if (moduleId && studentId) {
+        // Fetch sessions count again to be accurate about "total expected"
+        const { count, error: countError } = await supabase
+          .from('sessions')
+          .select('*', { count: 'exact', head: true })
+          .eq('module_id', moduleId);
+        if (countError) throw countError;
+        total = count || 0;
+      } else {
+        total = attendance.length;
+      }
+
+      const present = attendance.filter((a) => a.status === ATTENDANCE_STATUS.PRESENT).length;
+      const late = attendance.filter((a) => a.status === ATTENDANCE_STATUS.LATE).length;
+      const absent = attendance.filter((a) => a.status === ATTENDANCE_STATUS.ABSENT).length;
+
       const percentage = total > 0 ? ((present + late) / total) * 100 : 100;
       const isAtRisk = percentage < threshold;
-      
-      // Absences remaining: how many more sessions can they miss before falling below threshold?
-      // Calculation: Max absences = Floor(Total * (1 - Threshold/100))
+
       const maxAbsences = Math.floor(total * (1 - threshold / 100));
       const absencesRemaining = Math.max(0, maxAbsences - absent);
 
@@ -68,6 +87,7 @@ export function useAttendanceStats(studentId?: string, moduleId?: string, thresh
         absencesRemaining,
       } as AttendanceStats;
     },
-    enabled: !!studentId && !!moduleId,
+    // Always enabled to allow global stats when no IDs are provided
+    enabled: true,
   });
 }

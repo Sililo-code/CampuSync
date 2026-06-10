@@ -1,6 +1,10 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
+import { useModules } from '@/hooks/queries/useModules';
+import { useProfiles } from '@/hooks/queries/useProfiles';
+import { useEnrolledStudents } from '@/hooks/queries/useEnrolledStudents';
+import { useCreateModule } from '@/hooks/queries/useCreateModule';
+import { useEnrolStudent } from '@/hooks/queries/useEnrolStudent';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,188 +13,103 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, BookOpen, Users, Calendar, BarChart3 } from 'lucide-react';
-import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { createModuleSchema, CreateModuleFormValues } from '@/schemas';
 import AttendanceTracker from '@/components/attendance/AttendanceTracker';
 import AttendanceAnalytics from '@/components/attendance/AttendanceAnalytics';
-
-const moduleSchema = z.object({
-  code: z.string().trim().min(1, { message: 'Module code is required' }).max(20),
-  name: z.string().trim().min(1, { message: 'Module name is required' }).max(100),
-  description: z.string().max(500).optional(),
-});
-
-interface Module {
-  id: string;
-  code: string;
-  name: string;
-  description: string | null;
-  student_count?: number;
-}
-
-interface Student {
-  id: string;
-  full_name: string;
-  email: string;
-}
-
-interface EnrolledStudent {
-  profiles: {
-    id: string;
-    full_name: string;
-    email: string;
-  };
-}
+import { USER_ROLES } from '@/lib/constants';
 
 export default function LecturerDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [modules, setModules] = useState<Module[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
+  
+  // State for toggles and selections
   const [selectedModule, setSelectedModule] = useState<string | null>(null);
-  const [enrolledStudents, setEnrolledStudents] = useState<EnrolledStudent[]>([]);
-  const [newModule, setNewModule] = useState({ code: '', name: '', description: '' });
+  const [activeTab, setActiveTab] = useState('modules');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [enrollDialogOpen, setEnrollDialogOpen] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<string>('');
-  const [loading, setLoading] = useState(true);
+  const [selectedStudentForEnroll, setSelectedStudentForEnroll] = useState<string>('');
 
-  useEffect(() => {
-    fetchModules();
-    fetchStudents();
-  }, [user]);
+  // Queries
+  const { data: modules = [], isLoading: loadingModules } = useModules();
+  const { data: students = [], isLoading: loadingStudents } = useProfiles(USER_ROLES.STUDENT);
+  const { data: enrolledStudents = [], isLoading: loadingEnrolled } = useEnrolledStudents(selectedModule || undefined);
 
-  useEffect(() => {
-    if (selectedModule) {
-      fetchEnrolledStudents(selectedModule);
-    }
-  }, [selectedModule]);
+  // Mutations
+  const createModuleMutation = useCreateModule();
+  const enrolStudentMutation = useEnrolStudent();
 
-  const fetchModules = async () => {
-    if (!user) return;
+  // Form for module creation
+  const moduleForm = useForm<CreateModuleFormValues>({
+    resolver: zodResolver(createModuleSchema),
+    defaultValues: {
+      code: '',
+      name: '',
+      description: '',
+      attendanceThreshold: 80,
+    },
+  });
 
-    const { data, error } = await supabase
-      .from('modules')
-      .select('*')
-      .eq('lecturer_id', user.id);
-
-    if (error) {
-      toast({
-        title: 'Error fetching modules',
-        description: error.message,
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setModules(data || []);
-    setLoading(false);
-  };
-
-  const fetchStudents = async () => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, full_name, email')
-      .eq('role', 'student');
-
-    if (error) {
-      toast({
-        title: 'Error fetching students',
-        description: error.message,
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setStudents(data || []);
-  };
-
-  const fetchEnrolledStudents = async (moduleId: string) => {
-    const { data, error } = await supabase
-      .from('student_modules')
-      .select(`
-        id,
-        profiles (
-          id,
-          full_name,
-          email
-        )
-      `)
-      .eq('module_id', moduleId);
-
-    if (error) {
-      toast({
-        title: 'Error fetching enrolled students',
-        description: error.message,
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setEnrolledStudents(data || []);
-  };
-
-  const createModule = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleCreateModule = async (values: CreateModuleFormValues) => {
     try {
-      const validated = moduleSchema.parse(newModule);
-
-      const { error } = await supabase.from('modules').insert([{
-        code: validated.code,
-        name: validated.name,
-        description: validated.description,
-        lecturer_id: user?.id,
-      }]);
-
-      if (error) throw error;
+      await createModuleMutation.mutateAsync({
+        ...values,
+        lecturerId: user?.id,
+      });
 
       toast({
         title: 'Module created',
         description: 'The module has been created successfully',
       });
 
-      setNewModule({ code: '', name: '', description: '' });
+      moduleForm.reset();
       setDialogOpen(false);
-      fetchModules();
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create module';
       toast({
         title: 'Error creating module',
-        description: error instanceof Error ? error.message : 'Failed to create module',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
   };
 
-  const enrollStudent = async () => {
-    if (!selectedStudent || !selectedModule) return;
+  const handleEnrollStudent = async () => {
+    if (!selectedStudentForEnroll || !selectedModule) return;
 
-    const { error } = await supabase.from('student_modules').insert({
-      student_id: selectedStudent,
-      module_id: selectedModule,
-    });
+    try {
+      await enrolStudentMutation.mutateAsync({
+        studentId: selectedStudentForEnroll,
+        moduleId: selectedModule,
+      });
 
-    if (error) {
+      toast({
+        title: 'Student enrolled',
+        description: 'The student has been enrolled successfully',
+      });
+
+      setSelectedStudentForEnroll('');
+      setEnrollDialogOpen(false);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to enroll student';
       toast({
         title: 'Error enrolling student',
-        description: error.message,
+        description: errorMessage,
         variant: 'destructive',
       });
-      return;
     }
-
-    toast({
-      title: 'Student enrolled',
-      description: 'The student has been enrolled successfully',
-    });
-
-    setSelectedStudent('');
-    setEnrollDialogOpen(false);
-    fetchEnrolledStudents(selectedModule);
   };
 
-  if (loading) {
+  const handleMarkAttendance = (moduleId: string) => {
+    setSelectedModule(moduleId);
+    setActiveTab('attendance');
+  };
+
+  if (loadingModules || loadingStudents) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -214,41 +133,65 @@ export default function LecturerDashboard() {
               <DialogTitle>Create New Module</DialogTitle>
               <DialogDescription>Add a new module to your teaching list</DialogDescription>
             </DialogHeader>
-            <form onSubmit={createModule} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="code">Module Code</Label>
-                <Input
-                  id="code"
-                  value={newModule.code}
-                  onChange={(e) => setNewModule({ ...newModule, code: e.target.value })}
-                  placeholder="COM413"
-                  required
-                  maxLength={20}
+            <Form {...moduleForm}>
+              <form onSubmit={moduleForm.handleSubmit(handleCreateModule)} className="space-y-4">
+                <FormField
+                  control={moduleForm.control}
+                  name="code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Module Code</FormLabel>
+                      <FormControl>
+                        <Input placeholder="COM413" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="name">Module Name</Label>
-                <Input
-                  id="name"
-                  value={newModule.name}
-                  onChange={(e) => setNewModule({ ...newModule, name: e.target.value })}
-                  placeholder="Software Engineering"
-                  required
-                  maxLength={100}
+                <FormField
+                  control={moduleForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Module Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Software Engineering" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={newModule.description}
-                  onChange={(e) => setNewModule({ ...newModule, description: e.target.value })}
-                  placeholder="Module description..."
-                  maxLength={500}
+                <FormField
+                  control={moduleForm.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Module description..." {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <Button type="submit" className="w-full">Create Module</Button>
-            </form>
+                <FormField
+                  control={moduleForm.control}
+                  name="attendanceThreshold"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Attendance Threshold (%)</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" className="w-full" disabled={createModuleMutation.isPending}>
+                  {createModuleMutation.isPending ? 'Creating...' : 'Create Module'}
+                </Button>
+              </form>
+            </Form>
           </DialogContent>
         </Dialog>
       </div>
@@ -266,7 +209,7 @@ export default function LecturerDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+            <CardTitle className="text-sm font-medium">Available Students</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -285,7 +228,7 @@ export default function LecturerDashboard() {
         </Card>
       </div>
 
-      <Tabs defaultValue="modules" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="modules">My Modules</TabsTrigger>
           <TabsTrigger value="attendance">
@@ -324,6 +267,14 @@ export default function LecturerDashboard() {
                           <Button
                             variant="outline"
                             size="sm"
+                            onClick={() => handleMarkAttendance(module.id)}
+                          >
+                            <Calendar className="w-4 h-4 mr-2" />
+                            Mark Attendance
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => setSelectedModule(module.id === selectedModule ? null : module.id)}
                           >
                             <Users className="w-4 h-4 mr-2" />
@@ -344,15 +295,18 @@ export default function LecturerDashboard() {
                       </div>
                       {selectedModule === module.id && (
                         <div className="mt-4 pt-4 border-t border-border">
-                          <h4 className="text-sm font-semibold mb-2">Enrolled Students</h4>
+                          <div className="flex justify-between items-center mb-2">
+                            <h4 className="text-sm font-semibold">Enrolled Students</h4>
+                            {loadingEnrolled && <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />}
+                          </div>
                           <div className="space-y-2">
-                            {enrolledStudents.length === 0 ? (
+                            {enrolledStudents.length === 0 && !loadingEnrolled ? (
                               <p className="text-xs text-muted-foreground">No students enrolled</p>
                             ) : (
-                              enrolledStudents.map((enrollment) => (
-                                <div key={enrollment.profiles.id} className="text-sm p-2 bg-accent/5 rounded">
-                                  <span className="font-medium">{enrollment.profiles.full_name}</span>
-                                  <span className="text-muted-foreground ml-2">({enrollment.profiles.email})</span>
+                              enrolledStudents.map((profile) => (
+                                <div key={profile.id} className="text-sm p-2 bg-accent/5 rounded">
+                                  <span className="font-medium">{profile.full_name}</span>
+                                  <span className="text-muted-foreground ml-2">({profile.email})</span>
                                 </div>
                               ))
                             )}
@@ -394,7 +348,7 @@ export default function LecturerDashboard() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="student">Student</Label>
-              <Select value={selectedStudent} onValueChange={setSelectedStudent}>
+              <Select value={selectedStudentForEnroll} onValueChange={setSelectedStudentForEnroll}>
                 <SelectTrigger id="student">
                   <SelectValue placeholder="Select a student" />
                 </SelectTrigger>
@@ -407,8 +361,12 @@ export default function LecturerDashboard() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={enrollStudent} className="w-full" disabled={!selectedStudent}>
-              Enroll Student
+            <Button 
+              onClick={handleEnrollStudent} 
+              className="w-full" 
+              disabled={!selectedStudentForEnroll || enrolStudentMutation.isPending}
+            >
+              {enrolStudentMutation.isPending ? 'Enrolling...' : 'Enroll Student'}
             </Button>
           </div>
         </DialogContent>
