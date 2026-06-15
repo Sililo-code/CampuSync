@@ -16,12 +16,14 @@ export default function AppHeader() {
     <header className="bg-card border-b border-border sticky top-0 z-10 shadow-sm">
       <div className="container mx-auto px-4 py-4 flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <GraduationCap className="w-6 h-6 text-primary-foreground" />
+          <div className="w-10 h-10 bg-accent rounded-lg flex items-center justify-center shadow-md shadow-accent/10">
+            <GraduationCap className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-foreground">CampuSync</h1>
-            <p className="text-xs text-muted-foreground">Cavendish University Zambia</p>
+            <h1 className="text-xl font-bold text-primary tracking-tight">CampuSync</h1>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none">
+              Cavendish University Zambia
+            </p>
           </div>
         </div>
         <Button onClick={signOut} variant="outline" size="sm">
