@@ -54,7 +54,7 @@ export default function LecturerDashboard() {
   const selectedModule = useMemo(() => modules.find(m => m.id === selectedModuleId), [modules, selectedModuleId]);
   
   const { data: enrolledStudents = [] } = useEnrolledStudents(selectedModuleId || undefined);
-  const { data: moduleSessions = [] } = useSessions(selectedModuleId || undefined);
+  const { data: moduleSessions = [], isLoading: loadingSessions } = useSessions(selectedModuleId || undefined);
   
   // Mutations
   const createSessionMutation = useCreateSession();

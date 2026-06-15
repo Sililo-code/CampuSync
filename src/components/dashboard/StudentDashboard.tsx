@@ -38,6 +38,7 @@ export default function StudentDashboard() {
   const firstName = user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Student';
   
   const totalSessions = attendance.length;
+  const presentCount = attendance.filter(a => a.status === ATTENDANCE_STATUS.PRESENT).length;
   const lateCount = attendance.filter(a => a.status === ATTENDANCE_STATUS.LATE).length;
   const attendedCount = presentCount + lateCount;
   const overallRate = totalSessions > 0 ? (attendedCount / totalSessions) * 100 : 0;

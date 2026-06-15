@@ -17,16 +17,12 @@ import {
   Users, 
   BookOpen, 
   GraduationCap, 
-  Plus, 
   LayoutDashboard, 
   UserPlus, 
   Library,
-  Search,
   CheckCircle2,
   AlertTriangle,
-  ChevronRight,
-  TrendingUp,
-  BarChart3
+  TrendingUp
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useForm } from 'react-hook-form';
