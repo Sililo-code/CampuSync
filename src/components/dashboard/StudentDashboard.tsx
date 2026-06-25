@@ -42,7 +42,6 @@ export default function StudentDashboard() {
   const lateCount = attendance.filter(a => a.status === ATTENDANCE_STATUS.LATE).length;
   const attendedCount = presentCount + lateCount;
   const overallRate = totalSessions > 0 ? (attendedCount / totalSessions) * 100 : 0;
-  const isOverallCompliant = overallRate >= ATTENDANCE_THRESHOLD_DEFAULT;
 
   // Group attendance by module
   const moduleStats = modules.map(module => {
@@ -53,16 +52,21 @@ export default function StudentDashboard() {
     const mAttended = mPresent + mLate;
     const mRate = mTotal > 0 ? (mAttended / mTotal) * 100 : 100; // Default to 100 if no sessions yet
     
+    // Use module specific threshold with global fallback
+    const moduleThreshold = module.attendance_threshold ?? ATTENDANCE_THRESHOLD_DEFAULT;
+    
     return {
       ...module,
       total: mTotal,
       attended: mAttended,
       rate: mRate,
-      isAtRisk: mTotal > 0 && mRate < ATTENDANCE_THRESHOLD_DEFAULT
+      isAtRisk: mTotal > 0 && mRate < moduleThreshold
     };
   });
 
   const atRiskModules = moduleStats.filter(m => m.isAtRisk);
+  // Overall compliance is true if no module is at risk
+  const isOverallCompliant = atRiskModules.length === 0;
 
   return (
     <div className="space-y-6 font-['Plus_Jakarta_Sans']">
@@ -92,7 +96,7 @@ export default function StudentDashboard() {
           <div className="text-sm space-y-1">
             {atRiskModules.map(m => (
               <p key={m.id} className="text-foreground/80">
-                <span className="font-bold text-foreground">{m.code}</span> is at risk — <span className="font-bold text-[hsl(var(--warning))]">{m.rate.toFixed(1)}%</span> attendance, below the {ATTENDANCE_THRESHOLD_DEFAULT}% required threshold.
+                <span className="font-bold text-foreground">{m.code}</span> is at risk — <span className="font-bold text-[hsl(var(--warning))]">{m.rate.toFixed(1)}%</span> attendance, below the {m.attendance_threshold ?? ATTENDANCE_THRESHOLD_DEFAULT}% required threshold.
               </p>
             ))}
           </div>
@@ -159,13 +163,14 @@ export default function StudentDashboard() {
                 </div>
               ) : (
                 moduleStats.map(m => {
-                  const rateColorText = m.rate >= ATTENDANCE_THRESHOLD_DEFAULT 
+                  const moduleThreshold = m.attendance_threshold ?? ATTENDANCE_THRESHOLD_DEFAULT;
+                  const rateColorText = m.rate >= moduleThreshold 
                     ? 'text-secondary' 
                     : m.rate >= 60 
                     ? 'text-[hsl(var(--warning))]' 
                     : 'text-destructive';
                   
-                  const rateColorBg = m.rate >= ATTENDANCE_THRESHOLD_DEFAULT 
+                  const rateColorBg = m.rate >= moduleThreshold 
                     ? 'bg-secondary' 
                     : m.rate >= 60 
                     ? 'bg-[hsl(var(--warning))]' 

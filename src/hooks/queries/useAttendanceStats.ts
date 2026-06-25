@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { QUERY_KEYS } from './keys';
 import { AttendanceStats } from '@/types';
-import { ATTENDANCE_STATUS } from '@/lib/constants';
+import { ATTENDANCE_STATUS, ATTENDANCE_THRESHOLD_DEFAULT } from '@/lib/constants';
 
 /**
  * Hook to compute attendance statistics.
@@ -12,10 +12,25 @@ import { ATTENDANCE_STATUS } from '@/lib/constants';
  * 3. All attendance for a specific module (only moduleId provided)
  * 4. System-wide attendance (neither provided)
  */
-export function useAttendanceStats(studentId?: string, moduleId?: string, threshold: number = 80) {
+export function useAttendanceStats(studentId?: string, moduleId?: string, threshold?: number) {
   return useQuery({
-    queryKey: [QUERY_KEYS.ATTENDANCE_STATS, studentId, moduleId],
+    queryKey: [QUERY_KEYS.ATTENDANCE_STATS, studentId, moduleId, threshold],
     queryFn: async () => {
+      // 1. Resolve Threshold
+      let finalThreshold = threshold ?? ATTENDANCE_THRESHOLD_DEFAULT;
+      
+      if (moduleId && !threshold) {
+        const { data: moduleData } = await supabase
+          .from('modules')
+          .select('attendance_threshold')
+          .eq('id', moduleId)
+          .single();
+        
+        if (moduleData?.attendance_threshold) {
+          finalThreshold = moduleData.attendance_threshold;
+        }
+      }
+
       let query = supabase.from('attendance').select('status');
 
       // 1. Scoped to Module (either for one student or all students)
@@ -72,9 +87,9 @@ export function useAttendanceStats(studentId?: string, moduleId?: string, thresh
       const absent = attendance.filter((a) => a.status === ATTENDANCE_STATUS.ABSENT).length;
 
       const percentage = total > 0 ? ((present + late) / total) * 100 : 100;
-      const isAtRisk = percentage < threshold;
+      const isAtRisk = percentage < finalThreshold;
 
-      const maxAbsences = Math.floor(total * (1 - threshold / 100));
+      const maxAbsences = Math.floor(total * (1 - finalThreshold / 100));
       const absencesRemaining = Math.max(0, maxAbsences - absent);
 
       return {

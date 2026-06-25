@@ -7,15 +7,15 @@ import { useMarkBatchAttendance } from '@/hooks/queries/useMarkBatchAttendance';
 import { useAttendance } from '@/hooks/queries/useAttendance';
 import { useAtRiskStudents } from '@/hooks/queries/useAtRiskStudents';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, XCircle, Clock, Calendar, Plus, Save, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, Calendar, Plus, Save, AlertTriangle, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -38,6 +38,7 @@ export default function AttendanceTracker({ moduleId }: AttendanceTrackerProps) 
   const [activeSessionId, setActiveSessionId] = useState<string>('');
   const [markRoster, setMarkRoster] = useState<MarkRosterItem[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [overwriteDialogOpen, setOverwriteDialogOpen] = useState(false);
 
   // Queries
   const { data: students = [], isLoading: loadingStudents } = useEnrolledStudents(moduleId);
@@ -112,24 +113,46 @@ export default function AttendanceTracker({ moduleId }: AttendanceTrackerProps) 
     );
   };
 
+  const submitAttendance = async (confirmOverwrite = false) => {
+    if (!user || !activeSessionId) return;
+    await markBatchAttendance.mutateAsync({
+      sessionId: activeSessionId,
+      moduleId: moduleId,
+      records: markRoster.map((item) => ({
+        studentId: item.studentId,
+        status: item.status,
+        markedBy: user.id,
+      })),
+      confirmOverwrite,
+    });
+    toast({
+      title: 'Attendance submitted',
+      description: `Attendance for ${markRoster.length} students has been recorded.`,
+    });
+  };
+
   const handleSubmitAttendance = async () => {
     if (!user || !activeSessionId) return;
-
     try {
-      await markBatchAttendance.mutateAsync({
-        sessionId: activeSessionId,
-        moduleId: moduleId,
-        records: markRoster.map((item) => ({
-          studentId: item.studentId,
-          status: item.status,
-          markedBy: user.id,
-        })),
-      });
-
+      await submitAttendance(false);
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message === 'ATTENDANCE_ALREADY_RECORDED') {
+        setOverwriteDialogOpen(true);
+        return;
+      }
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       toast({
-        title: 'Attendance submitted',
-        description: `Attendance for ${markRoster.length} students has been recorded.`,
+        title: 'Error submitting attendance',
+        description: errorMessage,
+        variant: 'destructive',
       });
+    }
+  };
+
+  const handleConfirmOverwrite = async () => {
+    setOverwriteDialogOpen(false);
+    try {
+      await submitAttendance(true);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       toast({
@@ -168,8 +191,13 @@ export default function AttendanceTracker({ moduleId }: AttendanceTrackerProps) 
 
   if (loadingStudents || loadingSessions) {
     return (
-      <div className="flex justify-center items-center h-32">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="space-y-6">
+        <Skeleton className="h-24 w-full rounded-xl" />
+        <Skeleton className="h-12 w-64 rounded-lg" />
+        <div className="grid grid-cols-1 gap-4">
+          <Skeleton className="h-32 rounded-xl" />
+          <Skeleton className="h-48 rounded-xl" />
+        </div>
       </div>
     );
   }
@@ -285,8 +313,10 @@ export default function AttendanceTracker({ moduleId }: AttendanceTrackerProps) 
       ) : (
         <>
           {loadingAttendance ? (
-            <div className="flex justify-center py-12">
-              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            <div className="p-6 space-y-3 bg-card border border-border rounded-xl">
+              {Array(4).fill(0).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full rounded-lg" />
+              ))}
             </div>
           ) : sessionAttendance.length > 0 ? (
             <Card>
@@ -334,6 +364,7 @@ export default function AttendanceTracker({ moduleId }: AttendanceTrackerProps) 
                   <Button 
                     onClick={handleSubmitAttendance} 
                     disabled={markBatchAttendance.isPending || markRoster.length === 0}
+                    requiresConnection
                   >
                     <Save className="w-4 h-4 mr-2" />
                     {markBatchAttendance.isPending ? 'Saving...' : 'Submit Attendance'}
@@ -351,8 +382,12 @@ export default function AttendanceTracker({ moduleId }: AttendanceTrackerProps) 
                   <TableBody>
                     {markRoster.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={2} className="text-center py-8 text-muted-foreground">
-                          No students enrolled in this module
+                        <TableCell colSpan={2} className="p-0">
+                          <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-muted rounded-xl bg-muted/20 m-6">
+                            <Users className="w-8 h-8 text-muted-foreground/40 mb-2" />
+                            <p className="text-sm font-semibold text-foreground">No students enrolled</p>
+                            <p className="text-xs text-muted-foreground mt-1">There are no students enrolled in this module yet.</p>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -447,6 +482,25 @@ export default function AttendanceTracker({ moduleId }: AttendanceTrackerProps) 
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={overwriteDialogOpen} onOpenChange={setOverwriteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Attendance already recorded</DialogTitle>
+            <DialogDescription>
+              Attendance for this session has already been submitted. Proceeding will overwrite the existing records. Are you sure?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setOverwriteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmOverwrite} disabled={markBatchAttendance.isPending}>
+              {markBatchAttendance.isPending ? 'Saving...' : 'Overwrite'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

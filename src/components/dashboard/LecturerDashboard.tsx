@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { 
   BookOpen, 
@@ -47,13 +48,15 @@ export default function LecturerDashboard() {
   // Roster Marking State
   const [rosterStatus, setRosterStatus] = useState<Record<string, AttendanceStatus>>({});
 
+  const [overwriteDialogOpen, setOverwriteDialogOpen] = useState(false);
+
   // Queries
   const { data: modules = [], isLoading: loadingModules } = useModules();
   
   // Contextual Data
   const selectedModule = useMemo(() => modules.find(m => m.id === selectedModuleId), [modules, selectedModuleId]);
   
-  const { data: enrolledStudents = [] } = useEnrolledStudents(selectedModuleId || undefined);
+  const { data: enrolledStudents = [], isLoading: loadingStudents } = useEnrolledStudents(selectedModuleId || undefined);
   const { data: moduleSessions = [], isLoading: loadingSessions } = useSessions(selectedModuleId || undefined);
   
   // Mutations
@@ -115,24 +118,43 @@ export default function LecturerDashboard() {
     setRosterStatus(newRoster);
   };
 
+  const submitAttendance = async (confirmOverwrite = false) => {
+    if (!user || !activeSessionId || !selectedModuleId) return;
+    const records = Object.entries(rosterStatus).map(([studentId, status]) => ({
+      studentId,
+      status,
+      markedBy: user.id,
+    }));
+    await markBatchMutation.mutateAsync({
+      sessionId: activeSessionId,
+      moduleId: selectedModuleId,
+      records,
+      confirmOverwrite,
+    });
+    toast({ title: 'Attendance submitted', description: `Records saved for ${enrolledStudents.length} students.` });
+    setActiveView('overview');
+    setSelectedModuleId(null);
+    setActiveSessionId(null);
+  };
+
   const handleSubmitAttendance = async () => {
     if (!user || !activeSessionId || !selectedModuleId) return;
-    
     try {
-      await markBatchMutation.mutateAsync({
-        sessionId: activeSessionId,
-        moduleId: selectedModuleId,
-        records: Object.entries(rosterStatus).map(([studentId, status]) => ({
-          studentId,
-          status,
-          markedBy: user.id,
-        })),
-      });
+      await submitAttendance(false);
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message === 'ATTENDANCE_ALREADY_RECORDED') {
+        setOverwriteDialogOpen(true);
+        return;
+      }
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      toast({ title: 'Submission failed', description: errorMessage, variant: 'destructive' });
+    }
+  };
 
-      toast({ title: 'Attendance submitted', description: `Records saved for ${enrolledStudents.length} students.` });
-      setActiveView('overview');
-      setSelectedModuleId(null);
-      setActiveSessionId(null);
+  const handleConfirmOverwrite = async () => {
+    setOverwriteDialogOpen(false);
+    try {
+      await submitAttendance(true);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       toast({ title: 'Submission failed', description: errorMessage, variant: 'destructive' });
@@ -243,7 +265,7 @@ export default function LecturerDashboard() {
                            <div className="flex items-center justify-between mb-3">
                               <span className="text-xs font-bold text-muted-foreground">{module.code} At-Risk Students</span>
                            </div>
-                           <AtRiskList moduleId={module.id} threshold={ATTENDANCE_THRESHOLD_DEFAULT} />
+                           <AtRiskList moduleId={module.id} threshold={module.attendance_threshold} />
                         </div>
                       ))}
                     </div>
@@ -267,7 +289,7 @@ export default function LecturerDashboard() {
                 sessionForm.setValue('moduleId', e.target.value);
                 setActiveSessionId(null);
               }}
-              className="flex h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             >
               <option value="" disabled>Choose a module to mark...</option>
               {modules.map(m => <option key={m.id} value={m.id}>{m.code} — {m.name}</option>)}
@@ -341,8 +363,18 @@ export default function LecturerDashboard() {
                   </div>
                   <CardContent className="p-0">
                     <div className="divide-y divide-border">
-                      {enrolledStudents.length === 0 ? (
-                        <div className="p-12 text-center text-muted-foreground text-sm">No students enrolled in this module</div>
+                      {loadingStudents ? (
+                        <div className="p-6 space-y-3">
+                          {Array(3).fill(0).map((_, i) => (
+                            <Skeleton key={i} className="h-14 w-full rounded-xl" />
+                          ))}
+                        </div>
+                      ) : enrolledStudents.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-muted rounded-xl bg-muted/20 m-6">
+                          <Users className="w-8 h-8 text-muted-foreground/40 mb-2" />
+                          <p className="text-sm font-semibold text-foreground">No students enrolled</p>
+                          <p className="text-xs text-muted-foreground mt-1">There are no students enrolled in this module yet.</p>
+                        </div>
                       ) : (
                         enrolledStudents.map(student => (
                           <div key={student.id} className="px-6 py-4 flex items-center justify-between hover:bg-muted/5 transition-colors">
@@ -378,6 +410,7 @@ export default function LecturerDashboard() {
                  className="w-full py-7 font-black text-lg bg-primary rounded-2xl shadow-xl shadow-primary/20"
                  onClick={handleSubmitAttendance}
                  disabled={markBatchMutation.isPending}
+                 requiresConnection
                >
                  <Save className="w-5 h-5 mr-3" />
                  {markBatchMutation.isPending ? 'Saving attendance...' : 'Submit attendance'}
@@ -395,7 +428,7 @@ export default function LecturerDashboard() {
             <select 
               value={selectedModuleId || ''} 
               onChange={(e) => setSelectedModuleId(e.target.value || null)}
-              className="flex h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             >
               <option value="">All Assigned Modules</option>
               {modules.map(m => <option key={m.id} value={m.id}>{m.code} — {m.name}</option>)}
@@ -443,6 +476,25 @@ export default function LecturerDashboard() {
           </div>
         </div>
       )}
+
+      <Dialog open={overwriteDialogOpen} onOpenChange={setOverwriteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Attendance already recorded</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Attendance for this session has already been submitted. Proceeding will overwrite the existing records. Are you sure?
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setOverwriteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmOverwrite} disabled={markBatchMutation.isPending}>
+              {markBatchMutation.isPending ? 'Saving...' : 'Overwrite'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

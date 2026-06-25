@@ -52,8 +52,17 @@ export const createSessionSchema = z.object({
   topic: z.string().max(200).optional(),
 });
 
+export const updateModuleThresholdSchema = z.object({
+  attendanceThreshold: z
+    .number()
+    .int()
+    .min(50, { message: 'Threshold must be at least 50%.' })
+    .max(100, { message: 'Threshold cannot exceed 100%.' }),
+});
+
 export type SignInFormValues = z.infer<typeof signInSchema>;
 export type SignUpFormValues = z.infer<typeof signUpSchema>;
 export type CreateUserFormValues = z.infer<typeof createUserSchema>;
 export type CreateModuleFormValues = z.infer<typeof createModuleSchema>;
 export type CreateSessionFormValues = z.infer<typeof createSessionSchema>;
+export type UpdateModuleThresholdFormValues = z.infer<typeof updateModuleThresholdSchema>;

@@ -7,11 +7,26 @@ import { ATTENDANCE_THRESHOLD_DEFAULT, ATTENDANCE_STATUS } from '@/lib/constants
 /**
  * Hook to fetch all students below the attendance threshold for a specific module.
  */
-export function useAtRiskStudents(moduleId?: string, threshold: number = ATTENDANCE_THRESHOLD_DEFAULT) {
+export function useAtRiskStudents(moduleId?: string, threshold?: number) {
   return useQuery({
     queryKey: [QUERY_KEYS.AT_RISK_STUDENTS, moduleId, threshold],
     queryFn: async () => {
       if (!moduleId) return [];
+
+      // 0. Resolve Threshold
+      let finalThreshold = threshold ?? ATTENDANCE_THRESHOLD_DEFAULT;
+
+      if (!threshold) {
+        const { data: moduleData } = await supabase
+          .from('modules')
+          .select('attendance_threshold')
+          .eq('id', moduleId)
+          .single();
+        
+        if (moduleData?.attendance_threshold) {
+          finalThreshold = moduleData.attendance_threshold;
+        }
+      }
 
       // 1. Get all students enrolled in the module
       const { data: enrolled, error: enrolledError } = await supabase
@@ -62,8 +77,8 @@ export function useAtRiskStudents(moduleId?: string, threshold: number = ATTENDA
         
         const percentage = totalSessions > 0 ? ((present + late) / totalSessions) * 100 : 100;
         
-        if (percentage < threshold) {
-          const maxAbsences = Math.floor(totalSessions * (1 - threshold / 100));
+        if (percentage < finalThreshold) {
+          const maxAbsences = Math.floor(totalSessions * (1 - finalThreshold / 100));
           const absencesRemaining = Math.max(0, maxAbsences - absent);
 
           atRiskStudents.push({

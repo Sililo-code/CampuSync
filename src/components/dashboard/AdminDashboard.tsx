@@ -27,8 +27,11 @@ import {
 import { format } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { createUserSchema, createModuleSchema, CreateUserFormValues, CreateModuleFormValues } from '@/schemas';
+import { createUserSchema, createModuleSchema, updateModuleThresholdSchema, CreateUserFormValues, CreateModuleFormValues, UpdateModuleThresholdFormValues } from '@/schemas';
 import { USER_ROLES, ATTENDANCE_THRESHOLD_DEFAULT } from '@/lib/constants';
+import { useUpdateModule } from '@/hooks/queries/useUpdateModule';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Module } from '@/types';
 
 type AdminView = 'overview' | 'users' | 'modules';
 
@@ -38,6 +41,7 @@ export default function AdminDashboard() {
   
   // Navigation State
   const [activeView, setActiveView] = useState<AdminView>('overview');
+  const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
   
   // Queries
   const { data: students = [], isLoading: loadingStudents } = useProfiles(USER_ROLES.STUDENT);
@@ -48,6 +52,7 @@ export default function AdminDashboard() {
   // Mutations
   const createUserMutation = useCreateUser();
   const createModuleMutation = useCreateModule();
+  const updateModuleMutation = useUpdateModule(editingModuleId || '');
 
   // Forms
   const userForm = useForm<CreateUserFormValues>({
@@ -71,6 +76,10 @@ export default function AdminDashboard() {
     },
   });
 
+  const thresholdForm = useForm<UpdateModuleThresholdFormValues>({
+    resolver: zodResolver(updateModuleThresholdSchema),
+  });
+
   // Handlers
   const handleCreateUser = async (values: CreateUserFormValues) => {
     try {
@@ -90,6 +99,22 @@ export default function AdminDashboard() {
       moduleForm.reset();
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Module creation failed';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    }
+  };
+
+  const handleEditThreshold = (module: Module) => {
+    setEditingModuleId(module.id);
+    thresholdForm.setValue('attendanceThreshold', module.attendance_threshold ?? ATTENDANCE_THRESHOLD_DEFAULT);
+  };
+
+  const handleUpdateThreshold = async (values: UpdateModuleThresholdFormValues) => {
+    try {
+      await updateModuleMutation.mutateAsync(values);
+      toast({ title: 'Threshold updated', description: 'Module attendance policy has been updated.' });
+      setEditingModuleId(null);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Update failed';
       toast({ title: 'Error', description: msg, variant: 'destructive' });
     }
   };
@@ -188,7 +213,7 @@ export default function AdminDashboard() {
                               <span className="text-xs font-bold text-muted-foreground">{m.code} Compliance</span>
                               <Badge variant="outline" className="text-[10px] uppercase">{m.name}</Badge>
                            </div>
-                           <AtRiskList moduleId={m.id} threshold={ATTENDANCE_THRESHOLD_DEFAULT} />
+                           <AtRiskList moduleId={m.id} threshold={m.attendance_threshold} />
                         </div>
                       ))
                     )}
@@ -243,22 +268,30 @@ export default function AdminDashboard() {
               <h3 className="text-sm font-bold text-foreground uppercase tracking-widest px-1">Active Profiles</h3>
               <Card className="border-border rounded-xl shadow-sm overflow-hidden">
                 <CardContent className="p-0">
-                   <div className="divide-y divide-border">
-                      {[...lecturers, ...students].map(p => (
-                        <div key={p.id} className="px-6 py-4 flex items-center justify-between hover:bg-muted/5 transition-colors">
-                           <div className="flex items-center gap-4">
-                              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-xs ${p.role === 'lecturer' ? 'bg-primary' : 'bg-secondary'}`}>
-                                 {p.full_name.charAt(0)}
+                    <div className="divide-y divide-border">
+                       {[...lecturers, ...students].length === 0 ? (
+                         <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-muted rounded-xl bg-muted/20 m-6">
+                            <Users className="w-8 h-8 text-muted-foreground/40 mb-2" />
+                            <p className="text-sm font-semibold text-foreground">No active profiles</p>
+                            <p className="text-xs text-muted-foreground mt-1">There are no users registered in the system yet.</p>
+                         </div>
+                       ) : (
+                         [...lecturers, ...students].map(p => (
+                           <div key={p.id} className="px-6 py-4 flex items-center justify-between hover:bg-muted/5 transition-colors">
+                              <div className="flex items-center gap-4">
+                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-xs ${p.role === 'lecturer' ? 'bg-primary' : 'bg-secondary'}`}>
+                                    {p.full_name.charAt(0)}
+                                 </div>
+                                 <div className="flex flex-col">
+                                    <span className="text-sm font-bold">{p.full_name}</span>
+                                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">{p.role} · {p.email}</span>
+                                 </div>
                               </div>
-                              <div className="flex flex-col">
-                                 <span className="text-sm font-bold">{p.full_name}</span>
-                                 <span className="text-[10px] text-muted-foreground uppercase font-semibold">{p.role} · {p.email}</span>
-                              </div>
+                              <Badge variant="outline" className="text-[10px] font-bold h-6">Active</Badge>
                            </div>
-                           <Badge variant="outline" className="text-[10px] font-bold h-6">Active</Badge>
-                        </div>
-                      ))}
-                   </div>
+                         ))
+                       )}
+                    </div>
                 </CardContent>
               </Card>
            </div>
@@ -286,7 +319,7 @@ export default function AdminDashboard() {
                         <Label className="text-xs font-semibold">Lecturer Assignment</Label>
                         <select 
                           {...moduleForm.register('lecturerId')}
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                         >
                           <option value="">No lecturer assigned</option>
                           {lecturers.map(l => <option key={l.id} value={l.id}>{l.full_name}</option>)}
@@ -309,29 +342,88 @@ export default function AdminDashboard() {
               <h3 className="text-sm font-bold text-foreground uppercase tracking-widest px-1">Institutional Curriculum</h3>
               <Card className="border-border rounded-xl shadow-sm overflow-hidden">
                 <CardContent className="p-0">
-                   <div className="divide-y divide-border">
-                      {modules.map(m => (
-                        <div key={m.id} className="px-6 py-4 flex items-center justify-between hover:bg-muted/5 transition-colors group">
-                           <div className="flex items-center gap-4">
-                              <div className="bg-primary/5 p-3 rounded-lg group-hover:bg-primary/10 transition-colors">
-                                 <BookOpen className="w-5 h-5 text-primary" />
+                    <div className="divide-y divide-border">
+                       {modules.length === 0 ? (
+                         <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-muted rounded-xl bg-muted/20 m-6">
+                            <BookOpen className="w-8 h-8 text-muted-foreground/40 mb-2" />
+                            <p className="text-sm font-semibold text-foreground">No modules found</p>
+                            <p className="text-xs text-muted-foreground mt-1">Add a new module to start tracking attendance.</p>
+                         </div>
+                       ) : (
+                         modules.map(m => (
+                           <div key={m.id} className="px-6 py-4 flex items-center justify-between hover:bg-muted/5 transition-colors group">
+                              <div className="flex items-center gap-4">
+                                 <div className="bg-primary/5 p-3 rounded-lg group-hover:bg-primary/10 transition-colors">
+                                    <BookOpen className="w-5 h-5 text-primary" />
+                                 </div>
+                                 <div className="flex flex-col">
+                                    <span className="text-sm font-bold">{m.code}: {m.name}</span>
+                                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">
+                                      Lecturer: {lecturers.find(l => l.id === m.lecturer_id)?.full_name || 'Unassigned'} · Threshold: {m.attendance_threshold ?? ATTENDANCE_THRESHOLD_DEFAULT}%
+                                    </span>
+                                 </div>
                               </div>
-                              <div className="flex flex-col">
-                                 <span className="text-sm font-bold">{m.code}: {m.name}</span>
-                                 <span className="text-[10px] text-muted-foreground uppercase font-semibold">
-                                   Lecturer: {lecturers.find(l => l.id === m.lecturer_id)?.full_name || 'Unassigned'} · Threshold: {m.attendance_threshold}%
-                                 </span>
-                              </div>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="text-primary font-bold text-xs h-8"
+                                onClick={() => handleEditThreshold(m)}
+                              >
+                                Edit
+                              </Button>
                            </div>
-                           <Button variant="ghost" size="sm" className="text-primary font-bold text-xs h-8">Edit</Button>
-                        </div>
-                      ))}
-                   </div>
+                         ))
+                       )}
+                    </div>
                 </CardContent>
               </Card>
            </div>
         </div>
       )}
+
+      {/* Edit Threshold Dialog */}
+      <Dialog open={!!editingModuleId} onOpenChange={(open) => !open && setEditingModuleId(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Update Attendance Threshold</DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              Adjust the compliance requirement for this module. Changes reflect immediately in at-risk student lists.
+            </p>
+          </DialogHeader>
+          <form onSubmit={thresholdForm.handleSubmit(handleUpdateThreshold)} className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Attendance Threshold (%)</Label>
+              <Input 
+                type="number" 
+                placeholder="80" 
+                {...thresholdForm.register('attendanceThreshold', { valueAsNumber: true })} 
+              />
+              {thresholdForm.formState.errors.attendanceThreshold && (
+                <p className="text-[10px] text-destructive font-medium">
+                  {thresholdForm.formState.errors.attendanceThreshold.message}
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setEditingModuleId(null)}
+                className="text-xs font-bold"
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                className="bg-primary text-xs font-bold"
+                disabled={updateModuleMutation.isPending}
+              >
+                {updateModuleMutation.isPending ? 'Updating...' : 'Save Changes'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

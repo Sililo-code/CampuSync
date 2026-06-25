@@ -11,6 +11,7 @@ interface MarkBatchAttendanceParams {
     status: AttendanceStatus;
     markedBy: string;
   }[];
+  confirmOverwrite?: boolean;
 }
 
 /**
@@ -20,17 +21,32 @@ export function useMarkBatchAttendance() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ sessionId, records }: MarkBatchAttendanceParams) => {
+    mutationFn: async ({ sessionId, records, confirmOverwrite = false }: MarkBatchAttendanceParams) => {
+      if (!confirmOverwrite) {
+        const { data: existingRecords, error: checkError } = await supabase
+          .from('attendance')
+          .select('id')
+          .eq('session_id', sessionId)
+          .limit(1);
+
+        if (checkError) throw checkError;
+
+        if (existingRecords && existingRecords.length > 0) {
+          throw new Error('ATTENDANCE_ALREADY_RECORDED');
+        }
+      }
+
       const { data, error } = await supabase
         .from('attendance')
-        .insert(
+        .upsert(
           records.map(record => ({
             session_id: sessionId,
             student_id: record.studentId,
             status: record.status,
             marked_by: record.markedBy,
             marked_at: new Date().toISOString(),
-          }))
+          })),
+          { onConflict: 'student_id,session_id' }
         )
         .select();
 
