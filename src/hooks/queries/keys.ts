@@ -13,4 +13,5 @@ export const QUERY_KEYS = {
   STUDENT_ATTENDANCE: 'student_attendance',
   ATTENDANCE_STATS: 'attendance_stats',
   AT_RISK_STUDENTS: 'at_risk_students',
+  STUDENTS_BY_EMAIL: 'students_by_email',
 } as const;

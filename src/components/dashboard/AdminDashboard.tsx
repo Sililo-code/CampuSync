@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useProfiles } from '@/hooks/queries/useProfiles';
 import { useModules } from '@/hooks/queries/useModules';
@@ -6,6 +6,9 @@ import { useCreateUser } from '@/hooks/queries/useCreateUser';
 import { useCreateModule } from '@/hooks/queries/useCreateModule';
 import { useAttendanceStats } from '@/hooks/queries/useAttendanceStats';
 import { useAtRiskStudents } from '@/hooks/queries/useAtRiskStudents';
+import { useEnrolledStudents } from '@/hooks/queries/useEnrolledStudents';
+import { useEnrolStudent } from '@/hooks/queries/useEnrolStudent';
+import { useStudentsByEmail } from '@/hooks/queries/useStudentsByEmail';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,16 +16,17 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Users, 
-  BookOpen, 
-  GraduationCap, 
-  LayoutDashboard, 
-  UserPlus, 
+import {
+  Users,
+  BookOpen,
+  GraduationCap,
+  LayoutDashboard,
+  UserPlus,
   Library,
   CheckCircle2,
   AlertTriangle,
-  TrendingUp
+  TrendingUp,
+  Upload,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useForm } from 'react-hook-form';
@@ -31,18 +35,225 @@ import { createUserSchema, createModuleSchema, updateModuleThresholdSchema, Crea
 import { USER_ROLES, ATTENDANCE_THRESHOLD_DEFAULT } from '@/lib/constants';
 import { useUpdateModule } from '@/hooks/queries/useUpdateModule';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Module } from '@/types';
+import { Module, Profile } from '@/types';
 
 type AdminView = 'overview' | 'users' | 'modules';
+
+// Simple email regex for CSV header detection
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function parseCsv(raw: string): string[] {
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .reduce<string[]>((acc, line, index) => {
+      const cols = line.split(',').map((c) => c.trim());
+      const candidate = cols[0];
+      // Skip header row: first row whose first cell is not an email
+      if (index === 0 && !EMAIL_RE.test(candidate)) return acc;
+      if (EMAIL_RE.test(candidate)) acc.push(candidate.toLowerCase());
+      return acc;
+    }, []);
+}
+
+type PreviewRow = {
+  email: string;
+  fullName: string | null;
+  status: 'matched' | 'already_enrolled' | 'unmatched';
+  profileId: string | null;
+};
+
+interface RosterImportDialogProps {
+  moduleId: string;
+  moduleName: string;
+  open: boolean;
+  onClose: () => void;
+}
+
+function RosterImportDialog({ moduleId, moduleName, open, onClose }: RosterImportDialogProps) {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [parsedEmails, setParsedEmails] = useState<string[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+
+  const { data: enrolledStudents = [] } = useEnrolledStudents(moduleId);
+  const { data: matchedProfiles = [], isFetching: fetchingProfiles } = useStudentsByEmail(parsedEmails);
+  const enrolStudent = useEnrolStudent();
+
+  const enrolledIds = useMemo(
+    () => new Set(enrolledStudents.map((s: Profile) => s.id)),
+    [enrolledStudents]
+  );
+
+  const preview = useMemo<PreviewRow[]>(() => {
+    if (parsedEmails.length === 0) return [];
+    return parsedEmails.map((email) => {
+      const profile = matchedProfiles.find(
+        (p: Profile) => p.email.toLowerCase() === email
+      );
+      if (!profile) {
+        return { email, fullName: null, status: 'unmatched', profileId: null };
+      }
+      if (enrolledIds.has(profile.id)) {
+        return { email, fullName: profile.full_name, status: 'already_enrolled', profileId: profile.id };
+      }
+      return { email, fullName: profile.full_name, status: 'matched', profileId: profile.id };
+    });
+  }, [parsedEmails, matchedProfiles, enrolledIds]);
+
+  const handleFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string;
+      setParsedEmails(parseCsv(text));
+    };
+    reader.readAsText(file);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setParsedEmails([]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    onClose();
+  }, [onClose]);
+
+  const handleImport = async () => {
+    const toEnrol = preview.filter((r) => r.status === 'matched' && r.profileId);
+    const alreadyEnrolled = preview.filter((r) => r.status === 'already_enrolled').length;
+    const unmatched = preview.filter((r) => r.status === 'unmatched').length;
+
+    setIsImporting(true);
+    let enrolled = 0;
+    let failed = 0;
+    for (const row of toEnrol) {
+      try {
+        await enrolStudent.mutateAsync({ studentId: row.profileId!, moduleId });
+        enrolled++;
+      } catch {
+        failed++;
+      }
+    }
+    setIsImporting(false);
+
+    const parts: string[] = [];
+    if (enrolled > 0) parts.push(`${enrolled} student${enrolled !== 1 ? 's' : ''} enrolled`);
+    if (alreadyEnrolled > 0) parts.push(`${alreadyEnrolled} skipped (already enrolled)`);
+    if (unmatched > 0) parts.push(`${unmatched} unmatched`);
+    if (failed > 0) parts.push(`${failed} failed`);
+
+    toast({
+      title: 'Import complete',
+      description: parts.join(', ') + '.',
+      variant: failed > 0 ? 'destructive' : 'default',
+    });
+    handleClose();
+  };
+
+  const matchedCount = preview.filter((r) => r.status === 'matched').length;
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
+      <DialogContent className="sm:max-w-[560px] max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Import Roster — {moduleName}</DialogTitle>
+          <p className="text-xs text-muted-foreground pt-1">
+            Upload a CSV file to bulk-enrol existing students into this module.
+          </p>
+        </DialogHeader>
+
+        <div className="space-y-4 flex-1 overflow-y-auto">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold">CSV File</Label>
+            <p className="text-[11px] text-muted-foreground">
+              One email per row, or <code className="bg-muted px-1 rounded">email,full_name</code> columns — header row optional.
+            </p>
+            <Input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleFile}
+              className="text-xs cursor-pointer"
+            />
+          </div>
+
+          {parsedEmails.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-foreground uppercase tracking-widest">
+                  Preview — {parsedEmails.length} row{parsedEmails.length !== 1 ? 's' : ''}
+                </span>
+                {fetchingProfiles && (
+                  <span className="text-[10px] text-muted-foreground animate-pulse">Matching accounts…</span>
+                )}
+              </div>
+              <div className="border border-border rounded-lg overflow-hidden">
+                <div className="grid grid-cols-[1fr_auto_auto] text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted/30 px-4 py-2 border-b border-border">
+                  <span>Email</span>
+                  <span className="text-right mr-4">Name</span>
+                  <span className="text-right">Status</span>
+                </div>
+                <div className="divide-y divide-border max-h-56 overflow-y-auto">
+                  {preview.map((row) => (
+                    <div
+                      key={row.email}
+                      className="grid grid-cols-[1fr_auto_auto] items-center px-4 py-2.5 text-xs"
+                    >
+                      <span className="text-foreground font-medium truncate pr-3">{row.email}</span>
+                      <span className="text-muted-foreground mr-4 text-right">
+                        {row.fullName ?? '—'}
+                      </span>
+                      {row.status === 'matched' && (
+                        <Badge className="bg-secondary/10 text-secondary border-0 text-[9px] font-bold px-2 py-0.5">
+                          Will enrol
+                        </Badge>
+                      )}
+                      {row.status === 'already_enrolled' && (
+                        <Badge className="bg-muted text-muted-foreground border-0 text-[9px] font-bold px-2 py-0.5">
+                          Enrolled
+                        </Badge>
+                      )}
+                      {row.status === 'unmatched' && (
+                        <Badge className="bg-[hsl(var(--warning))]/10 text-[hsl(var(--warning))] border-0 text-[9px] font-bold px-2 py-0.5">
+                          No account
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2 pt-2">
+          <Button variant="outline" onClick={handleClose} className="text-xs font-bold">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleImport}
+            disabled={matchedCount === 0 || isImporting || fetchingProfiles}
+            className="bg-primary text-xs font-bold"
+            requiresConnection
+          >
+            {isImporting ? 'Importing…' : `Import ${matchedCount > 0 ? matchedCount : ''} Student${matchedCount !== 1 ? 's' : ''}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function AdminDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
-  
+
   // Navigation State
   const [activeView, setActiveView] = useState<AdminView>('overview');
   const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
-  
+  const [importingModuleId, setImportingModuleId] = useState<string | null>(null);
+
   // Queries
   const { data: students = [], isLoading: loadingStudents } = useProfiles(USER_ROLES.STUDENT);
   const { data: lecturers = [], isLoading: loadingLecturers } = useProfiles(USER_ROLES.LECTURER);
@@ -119,6 +330,11 @@ export default function AdminDashboard() {
     }
   };
 
+  const importingModule = useMemo(
+    () => modules.find((m) => m.id === importingModuleId) ?? null,
+    [modules, importingModuleId]
+  );
+
   const adminName = user?.user_metadata?.full_name?.split(' ')[0] || 'Administrator';
 
   if (loadingStudents || loadingLecturers || loadingModules) {
@@ -174,21 +390,21 @@ export default function AdminDashboard() {
       {activeView === 'overview' && (
         <div className="space-y-8 animate-in fade-in duration-500">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-             <StatsCard 
-               label="Total Students" 
-               value={students.length} 
+             <StatsCard
+               label="Total Students"
+               value={students.length}
                sub="Active enrolments"
                icon={<GraduationCap className="w-5 h-5 text-primary" />}
              />
-             <StatsCard 
-               label="Total Lecturers" 
-               value={lecturers.length} 
+             <StatsCard
+               label="Total Lecturers"
+               value={lecturers.length}
                sub="Faculty staff"
                icon={<Users className="w-5 h-5 text-primary" />}
              />
-             <StatsCard 
-               label="System Rate" 
-               value={`${globalStats?.percentage.toFixed(1) || 0}%`} 
+             <StatsCard
+               label="System Rate"
+               value={`${globalStats?.percentage.toFixed(1) || 0}%`}
                sub={`Target: ${ATTENDANCE_THRESHOLD_DEFAULT}%`}
                icon={<TrendingUp className="w-5 h-5 text-secondary" />}
                color="text-secondary"
@@ -200,7 +416,7 @@ export default function AdminDashboard() {
               <AlertTriangle className="w-4 h-4 text-[hsl(var(--warning))]" />
               <h3 className="text-sm font-bold text-foreground uppercase tracking-widest">Global At-Risk Monitoring</h3>
             </div>
-            
+
             <Card className="border-border rounded-xl overflow-hidden">
                <CardContent className="p-0">
                   <div className="divide-y divide-border">
@@ -247,7 +463,7 @@ export default function AdminDashboard() {
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-semibold">System Role</Label>
-                        <select 
+                        <select
                           {...userForm.register('role')}
                           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
@@ -317,7 +533,7 @@ export default function AdminDashboard() {
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-semibold">Lecturer Assignment</Label>
-                        <select 
+                        <select
                           {...moduleForm.register('lecturerId')}
                           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                         >
@@ -363,14 +579,25 @@ export default function AdminDashboard() {
                                     </span>
                                  </div>
                               </div>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="text-primary font-bold text-xs h-8"
-                                onClick={() => handleEditThreshold(m)}
-                              >
-                                Edit
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-muted-foreground font-bold text-xs h-8 gap-1.5"
+                                  onClick={() => setImportingModuleId(m.id)}
+                                >
+                                  <Upload className="w-3.5 h-3.5" />
+                                  Import Roster
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-primary font-bold text-xs h-8"
+                                  onClick={() => handleEditThreshold(m)}
+                                >
+                                  Edit
+                                </Button>
+                              </div>
                            </div>
                          ))
                        )}
@@ -393,10 +620,10 @@ export default function AdminDashboard() {
           <form onSubmit={thresholdForm.handleSubmit(handleUpdateThreshold)} className="space-y-4 py-4">
             <div className="space-y-2">
               <Label className="text-xs font-semibold">Attendance Threshold (%)</Label>
-              <Input 
-                type="number" 
-                placeholder="80" 
-                {...thresholdForm.register('attendanceThreshold', { valueAsNumber: true })} 
+              <Input
+                type="number"
+                placeholder="80"
+                {...thresholdForm.register('attendanceThreshold', { valueAsNumber: true })}
               />
               {thresholdForm.formState.errors.attendanceThreshold && (
                 <p className="text-[10px] text-destructive font-medium">
@@ -405,16 +632,16 @@ export default function AdminDashboard() {
               )}
             </div>
             <DialogFooter>
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 onClick={() => setEditingModuleId(null)}
                 className="text-xs font-bold"
               >
                 Cancel
               </Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="bg-primary text-xs font-bold"
                 disabled={updateModuleMutation.isPending}
               >
@@ -424,6 +651,16 @@ export default function AdminDashboard() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Import Roster Dialog */}
+      {importingModule && (
+        <RosterImportDialog
+          moduleId={importingModule.id}
+          moduleName={`${importingModule.code}: ${importingModule.name}`}
+          open={!!importingModuleId}
+          onClose={() => setImportingModuleId(null)}
+        />
+      )}
     </div>
   );
 }
@@ -449,7 +686,7 @@ function StatsCard({ label, value, sub, icon, color = "text-foreground" }: { lab
 
 function AtRiskList({ moduleId, threshold }: { moduleId: string, threshold: number }) {
   const { data: atRisk = [], isLoading } = useAtRiskStudents(moduleId, threshold);
-  
+
   if (isLoading) return <Skeleton className="h-8 w-full mt-2" />;
   if (atRisk.length === 0) return (
     <div className="flex items-center gap-2 text-secondary py-1">
@@ -468,4 +705,3 @@ function AtRiskList({ moduleId, threshold }: { moduleId: string, threshold: numb
     </div>
   );
 }
-
