@@ -260,7 +260,7 @@ export default function AdminDashboard() {
   const { data: students = [], isLoading: loadingStudents } = useProfiles(USER_ROLES.STUDENT);
   const { data: lecturers = [], isLoading: loadingLecturers } = useProfiles(USER_ROLES.LECTURER);
   const { data: modules = [], isLoading: loadingModules } = useModules();
-  const { data: globalStats, isLoading: loadingStats } = useAttendanceStats();
+  const { data: globalStats } = useAttendanceStats();
 
   // Mutations
   const createUserMutation = useCreateUser();

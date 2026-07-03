@@ -39,8 +39,8 @@ export const createModuleSchema = z.object({
   attendanceThreshold: z
     .number()
     .int()
-    .min(0)
-    .max(100)
+    .min(50, { message: 'Threshold must be at least 50%.' })
+    .max(100, { message: 'Threshold cannot exceed 100%.' })
     .default(80),
 });
 
