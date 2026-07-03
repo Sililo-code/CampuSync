@@ -27,7 +27,9 @@ import {
   AlertTriangle,
   TrendingUp,
   Upload,
+  History,
 } from 'lucide-react';
+import { AuditLogPanel } from './AuditLogPanel';
 import { format } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -37,7 +39,7 @@ import { useUpdateModule } from '@/hooks/queries/useUpdateModule';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Module, Profile } from '@/types';
 
-type AdminView = 'overview' | 'users' | 'modules';
+type AdminView = 'overview' | 'users' | 'modules' | 'logs';
 
 // Simple email regex for CSV header detection
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -369,8 +371,8 @@ export default function AdminDashboard() {
       </div>
 
       {/* View Toggle */}
-      <div className="bg-muted rounded-lg p-1 flex w-full max-w-md">
-        {(['overview', 'users', 'modules'] as AdminView[]).map((view) => (
+      <div className="bg-muted rounded-lg p-1 flex w-full max-w-lg">
+        {(['overview', 'users', 'modules', 'logs'] as AdminView[]).map((view) => (
           <button
             key={view}
             onClick={() => setActiveView(view)}
@@ -381,7 +383,8 @@ export default function AdminDashboard() {
             {view === 'overview' && <LayoutDashboard className="w-4 h-4" />}
             {view === 'users' && <UserPlus className="w-4 h-4" />}
             {view === 'modules' && <Library className="w-4 h-4" />}
-            {view.charAt(0).toUpperCase() + view.slice(1)}
+            {view === 'logs' && <History className="w-4 h-4" />}
+            {view === 'logs' ? 'Audit Log' : view.charAt(0).toUpperCase() + view.slice(1)}
           </button>
         ))}
       </div>
@@ -605,6 +608,13 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
            </div>
+        </div>
+      )}
+
+      {/* AUDIT LOG VIEW */}
+      {activeView === 'logs' && (
+        <div className="animate-in fade-in duration-500">
+          <AuditLogPanel />
         </div>
       )}
 

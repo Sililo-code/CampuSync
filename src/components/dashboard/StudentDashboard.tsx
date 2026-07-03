@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, BookOpen, Clock } from 'lucide-react';
 import { useStudentAttendance } from '@/hooks/queries/useStudentAttendance';
 import { useModules } from '@/hooks/queries/useModules';
+import { MissedSessionsList } from './MissedSessionsList';
 import { ATTENDANCE_STATUS, ATTENDANCE_THRESHOLD_DEFAULT } from '@/lib/constants';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
@@ -254,6 +255,9 @@ export default function StudentDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Missed Sessions List */}
+      <MissedSessionsList attendance={attendance} modules={modules} />
     </div>
   );
 }

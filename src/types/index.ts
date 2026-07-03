@@ -77,3 +77,30 @@ export interface AttendanceStats {
 export interface StudentWithStats extends Profile {
   stats: AttendanceStats;
 }
+
+import { Database } from '@/integrations/supabase/types';
+
+export type AttendanceAudit = Database['public']['Tables']['attendance_audit']['Row'];
+
+export interface AttendanceAuditRecord extends AttendanceAudit {
+  profiles: {
+    full_name: string;
+    email: string;
+  } | null;
+  attendance: {
+    student_id: string;
+    profiles: {
+      full_name: string;
+      email: string;
+    } | null;
+    sessions: {
+      session_date: string;
+      session_number: number;
+      modules: {
+        code: string;
+        name: string;
+      } | null;
+    } | null;
+  } | null;
+}
+

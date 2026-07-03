@@ -66,6 +66,51 @@ export type Database = {
           },
         ]
       }
+      attendance_audit: {
+        Row: {
+          attendance_id: string
+          change_type: string
+          changed_at: string
+          changed_by: string
+          id: string
+          new_status: Database["public"]["Enums"]["attendance_status"]
+          old_status: Database["public"]["Enums"]["attendance_status"] | null
+        }
+        Insert: {
+          attendance_id: string
+          change_type: string
+          changed_at?: string
+          changed_by: string
+          id?: string
+          new_status: Database["public"]["Enums"]["attendance_status"]
+          old_status?: Database["public"]["Enums"]["attendance_status"] | null
+        }
+        Update: {
+          attendance_id?: string
+          change_type?: string
+          changed_at?: string
+          changed_by?: string
+          id?: string
+          new_status?: Database["public"]["Enums"]["attendance_status"]
+          old_status?: Database["public"]["Enums"]["attendance_status"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_audit_attendance_id_fkey"
+            columns: ["attendance_id"]
+            isOneToOne: false
+            referencedRelation: "attendance"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_audit_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       modules: {
         Row: {
           attendance_threshold: number
@@ -384,4 +429,3 @@ export const Constants = {
     },
   },
 } as const
-
