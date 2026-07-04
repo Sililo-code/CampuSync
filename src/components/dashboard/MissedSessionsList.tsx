@@ -46,12 +46,12 @@ export function MissedSessionsList({ attendance, modules }: MissedSessionsListPr
           </CardDescription>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Filter className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
           <select
             value={selectedModuleId}
             onChange={(e) => setSelectedModuleId(e.target.value)}
-            className="flex h-8 w-[180px] rounded-md border border-input bg-background px-2.5 py-1 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-8 w-full sm:w-48 rounded-md border border-input bg-background px-2.5 py-1 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="all">All Modules</option>
             {modules.map((m) => (
@@ -75,56 +75,62 @@ export function MissedSessionsList({ attendance, modules }: MissedSessionsListPr
             </p>
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="pl-6">Date</TableHead>
-                <TableHead>Module</TableHead>
-                <TableHead>Session</TableHead>
-                <TableHead>Topic</TableHead>
-                <TableHead className="pr-6 text-right">Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredRecords.map((record) => {
-                const session = record.sessions;
-                const module = session.modules;
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="pl-6">Date</TableHead>
+                  <TableHead>Module</TableHead>
+                  <TableHead>Session</TableHead>
+                  <TableHead>Topic</TableHead>
+                  <TableHead className="pr-6 text-right">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+            </Table>
+            <div className="overflow-y-auto max-h-[260px]" style={{ scrollBehavior: 'smooth' }}>
+              <Table>
+                <TableBody>
+                  {filteredRecords.map((record) => {
+                    const session = record.sessions;
+                    const module = session.modules;
 
-                const isAbsent = record.status === ATTENDANCE_STATUS.ABSENT;
+                    const isAbsent = record.status === ATTENDANCE_STATUS.ABSENT;
 
-                return (
-                  <TableRow key={record.id} className="hover:bg-muted/5 transition-colors">
-                    <TableCell className="pl-6 font-semibold text-xs text-foreground">
-                      {format(new Date(session.session_date), 'PPP')}
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-foreground">{module.code}</span>
-                        <span className="text-[10px] text-muted-foreground">{module.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs font-semibold text-muted-foreground">
-                      Session #{session.session_number}
-                    </TableCell>
-                    <TableCell className="text-xs italic text-muted-foreground max-w-[200px] truncate">
-                      {session.topic || 'No topic defined'}
-                    </TableCell>
-                    <TableCell className="pr-6 text-right">
-                      {isAbsent ? (
-                        <Badge className="bg-destructive/10 text-destructive border-0 text-[10px] font-bold px-2 py-0.5 shadow-none hover:bg-destructive/20">
-                          ABSENT
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-[hsl(var(--warning))]/10 text-[hsl(var(--warning))] border-0 text-[10px] font-bold px-2 py-0.5 shadow-none hover:bg-[hsl(var(--warning))]/20">
-                          LATE
-                        </Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                    return (
+                      <TableRow key={record.id} className="hover:bg-muted/5 transition-colors">
+                        <TableCell className="pl-6 font-semibold text-xs text-foreground">
+                          {format(new Date(session.session_date), 'PPP')}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-foreground">{module.code}</span>
+                            <span className="text-[10px] text-muted-foreground">{module.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs font-semibold text-muted-foreground">
+                          Session #{session.session_number}
+                        </TableCell>
+                        <TableCell className="text-xs italic text-muted-foreground max-w-[200px] truncate">
+                          {session.topic || 'No topic defined'}
+                        </TableCell>
+                        <TableCell className="pr-6 text-right">
+                          {isAbsent ? (
+                            <Badge className="bg-destructive/10 text-destructive border-0 text-[10px] font-bold px-2 py-0.5 shadow-none hover:bg-destructive/20">
+                              ABSENT
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-[hsl(var(--warning))]/10 text-[hsl(var(--warning))] border-0 text-[10px] font-bold px-2 py-0.5 shadow-none hover:bg-[hsl(var(--warning))]/20">
+                              LATE
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>

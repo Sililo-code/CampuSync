@@ -279,7 +279,7 @@ export default function LecturerDashboard() {
 
       {/* MARK ATTENDANCE VIEW */}
       {activeView === 'mark' && (
-        <div className="max-w-4xl animate-in slide-in-from-bottom-4 duration-500 space-y-6">
+        <div className="w-full animate-in slide-in-from-bottom-4 duration-500 space-y-6">
           <div className="space-y-2">
             <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Select Module</Label>
             <select 

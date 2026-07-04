@@ -53,75 +53,81 @@ export function AuditLogPanel() {
             <p className="text-xs text-muted-foreground mt-1">Changes to attendance records will appear here automatically.</p>
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="pl-6">Timestamp</TableHead>
-                <TableHead>Module</TableHead>
-                <TableHead>Session</TableHead>
-                <TableHead>Student</TableHead>
-                <TableHead>Changed By</TableHead>
-                <TableHead className="pr-6 text-right">Change Details</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {logs.map((log) => {
-                const session = log.attendance?.sessions;
-                const module = session?.modules;
-                const student = log.attendance?.profiles;
-                const editor = log.profiles;
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="pl-6">Timestamp</TableHead>
+                  <TableHead>Module</TableHead>
+                  <TableHead>Session</TableHead>
+                  <TableHead>Student</TableHead>
+                  <TableHead>Changed By</TableHead>
+                  <TableHead className="pr-6 text-right">Change Details</TableHead>
+                </TableRow>
+              </TableHeader>
+            </Table>
+            <div className="overflow-y-auto max-h-[280px]" style={{ scrollBehavior: 'smooth' }}>
+              <Table>
+                <TableBody>
+                  {logs.map((log) => {
+                    const session = log.attendance?.sessions;
+                    const module = session?.modules;
+                    const student = log.attendance?.profiles;
+                    const editor = log.profiles;
 
-                const formattedDate = session?.session_date
-                  ? format(new Date(session.session_date), 'MMM dd')
-                  : '—';
+                    const formattedDate = session?.session_date
+                      ? format(new Date(session.session_date), 'MMM dd')
+                      : '—';
 
-                return (
-                  <TableRow key={log.id} className="hover:bg-muted/5 transition-colors">
-                    <TableCell className="pl-6 font-medium text-xs text-muted-foreground">
-                      {format(new Date(log.changed_at), 'Pp')}
-                    </TableCell>
-                    <TableCell className="font-bold text-xs">
-                      {module?.code ?? '—'}
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      Session #{session?.session_number ?? '—'} ({formattedDate})
-                    </TableCell>
-                    <TableCell className="font-semibold text-xs">
-                      {student?.full_name ?? '—'}
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      {editor?.full_name ?? '—'}
-                    </TableCell>
-                    <TableCell className="pr-6 text-right text-xs">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {log.change_type === 'insert' ? (
-                          <>
-                            <Badge className="bg-muted text-muted-foreground border-0 text-[10px] font-bold px-2 py-0.5">
-                              initial
-                            </Badge>
-                            <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/50" />
-                            <Badge className={`${getStatusBadgeColor(log.new_status)} text-[10px] px-2 py-0.5`}>
-                              {log.new_status}
-                            </Badge>
-                          </>
-                        ) : (
-                          <>
-                            <Badge className={`${getStatusBadgeColor(log.old_status)} text-[10px] px-2 py-0.5`}>
-                              {log.old_status}
-                            </Badge>
-                            <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/50" />
-                            <Badge className={`${getStatusBadgeColor(log.new_status)} text-[10px] px-2 py-0.5`}>
-                              {log.new_status}
-                            </Badge>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                    return (
+                      <TableRow key={log.id} className="hover:bg-muted/5 transition-colors">
+                        <TableCell className="pl-6 font-medium text-xs text-muted-foreground">
+                          {format(new Date(log.changed_at), 'Pp')}
+                        </TableCell>
+                        <TableCell className="font-bold text-xs">
+                          {module?.code ?? '—'}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          Session #{session?.session_number ?? '—'} ({formattedDate})
+                        </TableCell>
+                        <TableCell className="font-semibold text-xs">
+                          {student?.full_name ?? '—'}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {editor?.full_name ?? '—'}
+                        </TableCell>
+                        <TableCell className="pr-6 text-right text-xs">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {log.change_type === 'insert' ? (
+                              <>
+                                <Badge className="bg-muted text-muted-foreground border-0 text-[10px] font-bold px-2 py-0.5">
+                                  initial
+                                </Badge>
+                                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/50" />
+                                <Badge className={`${getStatusBadgeColor(log.new_status)} text-[10px] px-2 py-0.5`}>
+                                  {log.new_status}
+                                </Badge>
+                              </>
+                            ) : (
+                              <>
+                                <Badge className={`${getStatusBadgeColor(log.old_status)} text-[10px] px-2 py-0.5`}>
+                                  {log.old_status}
+                                </Badge>
+                                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/50" />
+                                <Badge className={`${getStatusBadgeColor(log.new_status)} text-[10px] px-2 py-0.5`}>
+                                  {log.new_status}
+                                </Badge>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>

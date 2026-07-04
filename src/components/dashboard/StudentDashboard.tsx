@@ -21,7 +21,8 @@ export default function StudentDashboard() {
     return (
       <div className="space-y-6">
         <Skeleton className="h-24 w-full rounded-xl" />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          <Skeleton className="h-24 rounded-xl" />
           <Skeleton className="h-24 rounded-xl" />
           <Skeleton className="h-24 rounded-xl" />
           <Skeleton className="h-24 rounded-xl" />
@@ -41,6 +42,7 @@ export default function StudentDashboard() {
   const totalSessions = attendance.length;
   const presentCount = attendance.filter(a => a.status === ATTENDANCE_STATUS.PRESENT).length;
   const lateCount = attendance.filter(a => a.status === ATTENDANCE_STATUS.LATE).length;
+  const absentCount = attendance.filter(a => a.status === ATTENDANCE_STATUS.ABSENT).length;
   const attendedCount = presentCount + lateCount;
   const overallRate = totalSessions > 0 ? (attendedCount / totalSessions) * 100 : 0;
 
@@ -105,7 +107,7 @@ export default function StudentDashboard() {
       )}
 
       {/* Stat Cards Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         {[
           { 
             label: 'Total Sessions', 
@@ -124,6 +126,12 @@ export default function StudentDashboard() {
             value: lateCount, 
             sub: 'Counts toward rate',
             color: 'text-[hsl(var(--warning))]' 
+          },
+          {
+            label: 'Absent',
+            value: absentCount,
+            sub: 'Sessions not attended',
+            color: 'text-destructive'
           },
           { 
             label: 'Overall Rate', 
@@ -214,7 +222,7 @@ export default function StudentDashboard() {
         <Card className="border-border rounded-xl shadow-sm">
           <CardContent className="p-5">
             <h3 className="text-sm font-semibold text-foreground mb-4">Recent sessions</h3>
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[292px] overflow-y-auto pr-1">
               {attendance.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-muted rounded-xl bg-muted/20">
                   <Clock className="w-8 h-8 text-muted-foreground/40 mb-2" />

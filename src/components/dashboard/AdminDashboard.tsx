@@ -487,7 +487,7 @@ export default function AdminDashboard() {
               <h3 className="text-sm font-bold text-foreground uppercase tracking-widest px-1">Active Profiles</h3>
               <Card className="border-border rounded-xl shadow-sm overflow-hidden">
                 <CardContent className="p-0">
-                    <div className="divide-y divide-border">
+                    <div className="divide-y divide-border overflow-y-auto max-h-[368px]" style={{ scrollBehavior: 'smooth' }}>
                        {[...lecturers, ...students].length === 0 ? (
                          <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-muted rounded-xl bg-muted/20 m-6">
                             <Users className="w-8 h-8 text-muted-foreground/40 mb-2" />
@@ -561,7 +561,7 @@ export default function AdminDashboard() {
               <h3 className="text-sm font-bold text-foreground uppercase tracking-widest px-1">Institutional Curriculum</h3>
               <Card className="border-border rounded-xl shadow-sm overflow-hidden">
                 <CardContent className="p-0">
-                    <div className="divide-y divide-border">
+                    <div className="divide-y divide-border overflow-y-auto max-h-[368px]" style={{ scrollBehavior: 'smooth' }}>
                        {modules.length === 0 ? (
                          <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-muted rounded-xl bg-muted/20 m-6">
                             <BookOpen className="w-8 h-8 text-muted-foreground/40 mb-2" />
