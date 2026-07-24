@@ -136,11 +136,12 @@ export default function AttendanceTracker({ moduleId }: AttendanceTrackerProps) 
     try {
       await submitAttendance(false);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message === 'ATTENDANCE_ALREADY_RECORDED') {
+      const err = error as { message?: string };
+      if (err?.message === 'ATTENDANCE_ALREADY_RECORDED') {
         setOverwriteDialogOpen(true);
         return;
       }
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      const errorMessage = err?.message || 'An unknown error occurred';
       toast({
         title: 'Error submitting attendance',
         description: errorMessage,
@@ -154,7 +155,8 @@ export default function AttendanceTracker({ moduleId }: AttendanceTrackerProps) 
     try {
       await submitAttendance(true);
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      const err = error as { message?: string };
+      const errorMessage = err?.message || 'An unknown error occurred';
       toast({
         title: 'Error submitting attendance',
         description: errorMessage,
